@@ -1,38 +1,10 @@
 {
-	"name": "TEMPLATE",
+	"name": "SuperCommand",
 	"tree": {
 		"$className": "DataModel",
-
-		"ReplicatedStorage": {
-			"$className": "ReplicatedStorage",
-			"Packages": {
-				"$path": "Packages"
-			},
-			"Shared": {
-				"$path": "src/Shared"
-			}
-		},
-		"StarterPlayer": {
-			"$className": "StarterPlayer",
-			"StarterPlayerScripts": {
-				"$className": "StarterPlayerScripts",
-				"Source": {
-					"$path": "src/Client"
-				}
-			}
-		},
-
 		"ServerScriptService": {
 			"$className": "ServerScriptService",
-			"Source": {
-				"$path": "src/Server"
-			}
-		},
-		"ServerStorage": {
-			"$className": "ServerStorage",
-			"Source": {
-				"$path": "src/ServerStorage"
-			}
+			"$path": "src"
 		}
 	}
 }
