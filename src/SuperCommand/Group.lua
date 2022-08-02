@@ -3,8 +3,6 @@ export type GroupType = {
 	Name: string;
 	Weight: number;
 
-	Connected: RBXScriptSignal;
-
 	AssignPlayer: (number) -> nil;
 	AssignPlayers: ({number}) -> nil;
 	PlayerIsInGroup: (Player) -> boolean | nil;

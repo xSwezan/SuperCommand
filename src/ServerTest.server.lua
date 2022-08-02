@@ -1,4 +1,6 @@
-local SuperCommand = require(script.Parent.SuperCommand)
+local SuperCommand = require(script.Parent.SuperCommand).Start()
+
+SuperCommand:CreateCommand()
 
 local Owner = SuperCommand:CreateGroup("Owner", 255)
 local Admin = SuperCommand:CreateGroup("Admin", 254)
@@ -31,4 +33,7 @@ SuperCommand:CreateCommand{
 	end;
 }
 
-SuperCommand:Start()
+SuperCommand.CommandExecuted:Connect(function(Player: Player, Command: SuperCommand.CommandType)
+	print(Player)
+	print(Command)
+end)
