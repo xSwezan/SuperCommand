@@ -1,10 +1,12 @@
 local SuperCommand = require(script.Parent.SuperCommand).Start()
 
-SuperCommand:CreateCommand()
-
 local Owner = SuperCommand:CreateGroup("Owner", 255)
 local Admin = SuperCommand:CreateGroup("Admin", 254)
 local Mod = SuperCommand:CreateGroup("Mod", 200)
+
+Owner:IsMember(function()
+	
+end)
 
 Owner:AssignPlayer(116387673)
 
@@ -33,7 +35,32 @@ SuperCommand:CreateCommand{
 	end;
 }
 
+SuperCommand:CreateCommand{
+	Name = "ColorBaseplate";
+	Arguments = {"Color"};
+	Execute = function(Color: Color3)
+		if not (typeof(Color) == "Color3") then return end
+		workspace.Baseplate.Color = Color
+	end;
+}
+
+SuperCommand:CreateCommand{
+	Name = "Print";
+	Arguments = {"string"};
+	Execute = function(...)
+		print(...)
+	end;
+}
+
+SuperCommand:CreateOperator("rand<(%d+),(%d+)>",function(Min: string, Max: string)
+	return math.random(tonumber(Min), tonumber(Max))
+end)
+
+SuperCommand:CreateOperator("foo",function()
+	return "bar"
+end)
+
 SuperCommand.CommandExecuted:Connect(function(Player: Player, Command: SuperCommand.CommandType)
-	print(Player)
-	print(Command)
+	-- print(Player)
+	-- print(Command)
 end)

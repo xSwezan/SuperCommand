@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local Command = require(script.Command)
 local Group = require(script.Group)
 local Type = require(script.Type)
+local Operator = require(script.Operator)
 
 -- Extra
 
@@ -38,6 +39,11 @@ type SuperCommandType = {
 	CreateType: (SuperCommandType, Name: string, Get: (string) -> any) -> Type.Type | nil;
 	CreateTypeFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Type.Type | nil;
 	CreateTypesFromFolder: (SuperCommandType, Directory: Instance) -> nil;
+
+	-- Operators
+	CreateOperator: (SuperCommandType, Pattern: string, Get: (string) -> any) -> Operator.OperatorType | nil;
+	CreateOperatorFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Operator.OperatorType | nil;
+	CreateOperatorsFromFolder: (SuperCommandType, Directory: Instance) -> nil;
 }
 
 export type CommandType = Command.CommandType;
@@ -49,6 +55,7 @@ local SuperCommand: SuperCommandType = {
 		Groups = {} :: {GroupType};
 		Commands = {} :: {CommandType};
 		Types = {} :: {TypeType};
+		Operators = {} :: {Operator.OperatorType};
 	
 		Events = {} :: {BindableEvent};
 	};
@@ -59,8 +66,8 @@ SuperCommand.__index = SuperCommand
 function SuperCommand.Start(): SuperCommandType
 	local self = setmetatable({}, SuperCommand)
 
-	self:CreateGroupsFromFolder(script.DefaultGroups)
-	self:CreateCommandsFromFolder(script.DefaultGroups)
+	-- self:CreateGroupsFromFolder(script.DefaultGroups)
+	-- self:CreateCommandsFromFolder(script.DefaultGroups)
 	self:CreateTypesFromFolder(script.DefaultTypes)
 
 	self:NewEvent("CommandExecuted")
@@ -75,7 +82,7 @@ function SuperCommand.Start(): SuperCommandType
 
 			if not (self:PlayerCanExecuteCommand(Player, Command)) then warn("Not enough permission!") return end
 
-			local Arguments = Util:GetArguments(Message, self.Storage.Types, Command.Arguments)
+			local Arguments = Util:GetArguments(self:InitiateOperators(Message), self.Storage.Types, Command.Arguments)
 
 			Command:Execute(unpack(Arguments))
 			self:FireEvent("CommandExecuted", Player, Command)
@@ -225,6 +232,45 @@ function SuperCommand:CreateTypesFromFolder(Directory: Instance)
 	for _, ModuleScript: ModuleScript in pairs(Directory:GetChildren() :: {}) do
 		self:CreateTypeFromModule(ModuleScript)
 	end
+end
+
+-- Operators
+
+function SuperCommand:CreateOperator(Pattern: string, Get: (FoundPattern: string) -> string): Operator.OperatorType | nil
+	if not (typeof(Pattern) == "string") then return end
+	if not (typeof(Get) == "function") then return end
+
+	local NewOperator = Operator:Create(Pattern, Get)
+	table.insert(self.Storage.Operators, NewOperator)
+
+	return NewOperator
+end
+
+function SuperCommand:CreateOperatorFromModule(ModuleScript: ModuleScript): Operator.OperatorType | nil
+	if not (typeof(ModuleScript) == "Instance") then return end
+	if not (ModuleScript:IsA("ModuleScript")) then return end
+
+	local OperatorGet = require(ModuleScript)
+	if not (typeof(OperatorGet) == "function") then return end
+
+	return self:CreateOperator(ModuleScript.Name, OperatorGet)
+end
+
+function SuperCommand:CreateOperatorsFromFolder(Directory: Instance)
+	if not (typeof(Directory) == "Instance") then return end
+
+	for _, ModuleScript: ModuleScript in pairs(Directory:GetChildren() :: {}) do
+		self:CreateOperatorFromModule(ModuleScript)
+	end
+end
+
+function SuperCommand:InitiateOperators(Message: string)
+	for _, Operator: Operator.OperatorType in pairs(self.Storage.Operators) do
+		Message = Message:gsub(Operator.Pattern, function(...)
+			return Operator:Get(...)
+		end)
+	end
+	return Message
 end
 
 return SuperCommand :: SuperCommandType
