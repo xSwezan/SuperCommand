@@ -1,0 +1,15 @@
+gitRepoUrl = "https://github.com/xSwezan/SuperCommand"
+
+classorder = [
+	"SuperCommand",
+	"Group",
+	"Type",
+	"Operator"
+]
+
+[home]
+enabled = true
+includeReadme = false
+
+[docusaurus]
+tagline = "Powerful Chat Command module with Rich API!"

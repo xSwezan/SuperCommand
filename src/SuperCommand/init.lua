@@ -50,6 +50,11 @@ export type CommandType = Command.CommandType;
 export type GroupType = Group.GroupType;
 export type TypeType = Type.Type;
 
+--[=[
+	@class SuperCommand
+
+
+]=]
 local SuperCommand: SuperCommandType = {
 	Storage = {
 		Groups = {} :: {GroupType};
@@ -74,7 +79,7 @@ function SuperCommand.Start(): SuperCommandType
 
 	Players.PlayerAdded:Connect(function(Player: Player)
 		Player.Chatted:Connect(function(Message: string)
-			local CommandName = Message:match(self.CommandPrefix.."(%w+)")
+			local CommandName = Message:match("^%"..self.CommandPrefix.."(%w+)")
 			if not (CommandName) then return end
 
 			local Command = self:FindCommand(CommandName)

@@ -4,9 +4,7 @@ local Owner = SuperCommand:CreateGroup("Owner", 255)
 local Admin = SuperCommand:CreateGroup("Admin", 254)
 local Mod = SuperCommand:CreateGroup("Mod", 200)
 
-Owner:IsMember(function()
-	
-end)
+SuperCommand.CommandPrefix = ""
 
 Owner:AssignPlayer(116387673)
 
