@@ -1,4 +1,5 @@
 gitRepoUrl = "https://github.com/xSwezan/SuperCommand"
+gitSourceBranch = "main"
 
 classorder = [
 	"SuperCommand",

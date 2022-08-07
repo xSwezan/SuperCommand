@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[944],{97767:e=>{e.exports=JSON.parse('{"functions":[],"properties":[],"types":[],"name":"SuperCommand","desc":"","source":{"line":58,"path":"src/SuperCommand/init.lua"}}')}}]);
