@@ -77,7 +77,7 @@ function SuperCommand.Start(): SuperCommandType
 
 	self:NewEvent("CommandExecuted")
 
-	Players.PlayerAdded:Connect(function(Player: Player)
+	local function SetupChat(Player: Player)
 		Player.Chatted:Connect(function(Message: string)
 			local CommandName = Message:match("^%"..self.CommandPrefix.."(%w+)")
 			if not (CommandName) then return end
@@ -92,7 +92,14 @@ function SuperCommand.Start(): SuperCommandType
 			Command:Execute(unpack(Arguments))
 			self:FireEvent("CommandExecuted", Player, Command)
 		end)
+	end
+
+	Players.PlayerAdded:Connect(function(Player: Player)
+		SetupChat(Player)
 	end)
+	for _, Player: Player in pairs(Players:GetPlayers()) do
+		SetupChat(Player)
+	end
 
 	return self
 end
