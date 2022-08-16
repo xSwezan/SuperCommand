@@ -5,6 +5,13 @@
 		"ServerScriptService": {
 			"$className": "ServerScriptService",
 			"$path": "src"
+		},
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+
+			"SuperCommand": {
+				"$path": "Packages"
+			}
 		}
 	}
 }

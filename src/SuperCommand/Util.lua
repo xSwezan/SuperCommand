@@ -20,9 +20,14 @@ function Util:GetArguments(Message: string, AvailableTypes: {}, CommandArguments
 
 	local Arguments = {}
 
-	for Index, TypeName in pairs(CommandArguments) do
+	for Index, TypeInfo in pairs(CommandArguments) do
+		local TypeName = TypeInfo
+		if (typeof(TypeInfo) == "table") then
+			TypeName = TypeInfo[1]
+		end
+
 		local Type = AvailableTypes[TypeName]
-		local Argument = (Type ~= nil) and Type:Get(Split[Index]) or Split[Index]
+		local Argument = (Type ~= nil) and Type:Convert(Split[Index]) or Split[Index]
 		table.insert(Arguments, Argument)
 	end
 

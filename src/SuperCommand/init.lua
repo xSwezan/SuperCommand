@@ -1,4 +1,5 @@
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Classes
 
@@ -36,8 +37,8 @@ type SuperCommandType = {
 	PlayerCanExecuteCommand: (SuperCommandType, Player: Player, Command: Command.CommandType) -> boolean | nil;
 
 	-- Types
-	CreateType: (SuperCommandType, Name: string, Get: (string) -> any) -> Type.Type | nil;
-	CreateTypeFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Type.Type | nil;
+	CreateType: (SuperCommandType, ModuleScript: ModuleScript--[[Name: string, Info: Type.TypeInfo]]) -> Type.Type | nil;
+	--CreateTypeFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Type.Type | nil;
 	CreateTypesFromFolder: (SuperCommandType, Directory: Instance) -> nil;
 
 	-- Operators
@@ -71,13 +72,38 @@ SuperCommand.__index = SuperCommand
 function SuperCommand.Start(): SuperCommandType
 	local self = setmetatable({}, SuperCommand)
 
-	-- self:CreateGroupsFromFolder(script.DefaultGroups)
-	-- self:CreateCommandsFromFolder(script.DefaultGroups)
-	self:CreateTypesFromFolder(script.DefaultTypes)
-
 	self:NewEvent("CommandExecuted")
 
-	local function SetupChat(Player: Player)
+	if not (ReplicatedStorage:FindFirstChild("SuperCommand")) then
+		local RS = script.ReplicatedStorage
+		RS.Name = "SuperCommand"
+		RS.Parent = ReplicatedStorage
+	end
+	
+	if not (ReplicatedStorage.SuperCommand:FindFirstChild("Commands")) then
+		local Commands = Instance.new("Folder")
+		Commands.Name = "Commands"
+		Commands.Parent = ReplicatedStorage.SuperCommand
+	end
+
+	-- self:CreateGroupsFromFolder(script.DefaultGroups)
+	-- self:CreateCommandsFromFolder(script.DefaultGroups)
+
+	if not (ReplicatedStorage.SuperCommand:FindFirstChild("Types")) then
+		local DefaultTypes = script.DefaultTypes
+		DefaultTypes.Name = "Types"
+		DefaultTypes.Parent = ReplicatedStorage.SuperCommand
+	end
+
+	self:CreateTypesFromFolder(ReplicatedStorage.SuperCommand.Types)
+
+	local function SetupPlayer(Player: Player)
+		if not (Player:WaitForChild("PlayerGui"):FindFirstChild("SuperCommand")) then
+			local Commandbar = script.Commandbar:Clone()
+			Commandbar.Name = "SuperCommand"
+			Commandbar.Parent = Player:WaitForChild("PlayerGui")
+		end
+
 		Player.Chatted:Connect(function(Message: string)
 			local CommandName = Message:match("^%"..self.CommandPrefix.."(%w+)")
 			if not (CommandName) then return end
@@ -95,10 +121,10 @@ function SuperCommand.Start(): SuperCommandType
 	end
 
 	Players.PlayerAdded:Connect(function(Player: Player)
-		SetupChat(Player)
+		SetupPlayer(Player)
 	end)
 	for _, Player: Player in pairs(Players:GetPlayers()) do
-		SetupChat(Player)
+		SetupPlayer(Player)
 	end
 
 	return self
@@ -218,31 +244,35 @@ end
 
 -- Types
 
-function SuperCommand:CreateType(Name: string, Get: (string) -> any): Type.Type | nil
-	if not (typeof(Name) == "string") then return end
-	if not (typeof(Get) == "function") then return end
+function SuperCommand:CreateType(ModuleScript: ModuleScript): Type.Type | nil
+	if not (ModuleScript) then return end
 
-	local NewType = Type:Create(Name, Get)
+	ModuleScript:Clone().Parent = ReplicatedStorage:WaitForChild("SuperCommand"):WaitForChild("Types")
+
+	local Name = ModuleScript.Name
+	local Info = require(ModuleScript)
+
+	local NewType = Type:Create(Name, Info)
 	self.Storage.Types[Name] = NewType
 
 	return NewType
 end
 
-function SuperCommand:CreateTypeFromModule(ModuleScript: ModuleScript): Type.Type | nil
-	if not (typeof(ModuleScript) == "Instance") then return end
-	if not (ModuleScript:IsA("ModuleScript")) then return end
+-- function SuperCommand:CreateTypeFromModule(ModuleScript: ModuleScript): Type.Type | nil
+-- 	if not (typeof(ModuleScript) == "Instance") then return end
+-- 	if not (ModuleScript:IsA("ModuleScript")) then return end
 
-	local TypeGet = require(ModuleScript)
-	if not (typeof(TypeGet) == "function") then return end
+-- 	local TypeInfo = require(ModuleScript)
+-- 	if not (typeof(TypeInfo) == "table") then return end
 
-	return self:CreateType(ModuleScript.Name, TypeGet)
-end
+-- 	return self:CreateType(ModuleScript.Name, TypeInfo)
+-- end
 
 function SuperCommand:CreateTypesFromFolder(Directory: Instance)
 	if not (typeof(Directory) == "Instance") then return end
 
 	for _, ModuleScript: ModuleScript in pairs(Directory:GetChildren() :: {}) do
-		self:CreateTypeFromModule(ModuleScript)
+		self:CreateType(ModuleScript)
 	end
 end
 

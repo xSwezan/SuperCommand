@@ -4,6 +4,11 @@ export type Type = {
 	Get: (string) -> any;
 }
 
+export type TypeInfo = {
+	Get: () -> any;
+	Convert: () -> any;
+}
+
 --[=[
 	@class Type
 
@@ -34,11 +39,12 @@ Type.__index = Type
 	@param Get (StringToBeProcessed: string) -> any -- The processor function, processes the string and returns the argument that will be used in the command.
 	@return TypeClass
 ]=]
-function Type:Create(Name: string, Get: (string) -> any)
+function Type:Create(Name: string, Info: {})
 	local self = setmetatable({}, Type)
 
 	self.Name = Name
-	self.__Get = Get
+	self.__Get = Info.Get
+	self.__Convert = Info.Convert
 
 	return self
 end
@@ -50,8 +56,8 @@ end
 	@param StringToBeProcessed string -- The string that you want to be Processed
 	@return ProcessedType
 ]=]
-function Type:Get(StringToBeProcessed: string): any
-	return self.__Get(StringToBeProcessed)
+function Type:Convert(StringToBeProcessed: string): any
+	return self.__Convert(StringToBeProcessed)
 end
 
 return Type
