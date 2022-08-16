@@ -1,3 +1,4 @@
+title = "SuperCommand"
 gitRepoUrl = "https://github.com/xSwezan/SuperCommand"
 gitSourceBranch = "main"
 
@@ -11,6 +12,10 @@ classorder = [
 [home]
 enabled = true
 includeReadme = false
+
+[navbar.logo]
+alt = "SuperCommand"
+src = "Icon.png"
 
 [docusaurus]
 tagline = "Powerful Chat Command module with Rich API!"

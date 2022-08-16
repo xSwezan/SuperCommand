@@ -36,7 +36,7 @@ Type.__index = Type
 	Creates a TypeClass
 
 	@param Name string -- Name of the Type
-	@param Get (StringToBeProcessed: string) -> any -- The processor function, processes the string and returns the argument that will be used in the command.
+	@param Info {Convert: (StringToBeProcessed: string) -> any} -- The processor function, processes the string and returns the argument that will be used in the command.
 	@return TypeClass
 ]=]
 function Type:Create(Name: string, Info: {})
