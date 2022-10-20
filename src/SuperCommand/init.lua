@@ -24,26 +24,26 @@ type SuperCommandType = {
 	CommandExecuted: RBXScriptSignal;
 
 	-- Groups
-	CreateGroup: (SuperCommandType, Name: string, Weight: number) -> Group.GroupType | nil;
-	CreateGroupFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Group.GroupType | nil;
+	CreateGroup: (SuperCommandType, Name: string, Weight: number) -> Group.GroupType?;
+	CreateGroupFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Group.GroupType?;
 	CreateGroupsFromFolder: (SuperCommandType, Directory: Instance) -> nil;
 	FindGroup: (SuperCommandType, Name: string) -> Group.GroupType;
 	
 	-- Commands
-	CreateCommand: (SuperCommandType, Info: Command.CommandType) -> Command.CommandType | nil;
-	CreateCommandFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Command.CommandType | nil;
+	CreateCommand: (SuperCommandType, Info: Command.CommandType) -> Command.CommandType?;
+	CreateCommandFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Command.CommandType?;
 	CreateCommandsFromFolder: (SuperCommandType, Directory: Instance) -> nil;
-	FindCommand: (SuperCommandType, CommandName: string) -> Command.CommandType | nil;
-	PlayerCanExecuteCommand: (SuperCommandType, Player: Player, Command: Command.CommandType) -> boolean | nil;
+	FindCommand: (SuperCommandType, CommandName: string) -> Command.CommandType?;
+	PlayerCanExecuteCommand: (SuperCommandType, UserId: number, Command: Command.CommandType) -> boolean?;
 
 	-- Types
-	CreateType: (SuperCommandType, ModuleScript: ModuleScript--[[Name: string, Info: Type.TypeInfo]]) -> Type.Type | nil;
-	--CreateTypeFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Type.Type | nil;
+	CreateType: (SuperCommandType, ModuleScript: ModuleScript--[[Name: string, Info: Type.TypeInfo]]) -> Type.Type?;
+	--CreateTypeFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Type.Type?;
 	CreateTypesFromFolder: (SuperCommandType, Directory: Instance) -> nil;
 
 	-- Operators
-	CreateOperator: (SuperCommandType, Pattern: string, Get: (string) -> any) -> Operator.OperatorType | nil;
-	CreateOperatorFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Operator.OperatorType | nil;
+	CreateOperator: (SuperCommandType, Pattern: string, Get: (string) -> any, ReturnType: string?) -> Operator.OperatorType?;
+	CreateOperatorFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Operator.OperatorType?;
 	CreateOperatorsFromFolder: (SuperCommandType, Directory: Instance) -> nil;
 }
 
@@ -86,6 +86,42 @@ function SuperCommand.Start(): SuperCommandType
 		Commands.Parent = ReplicatedStorage.SuperCommand
 	end
 
+	if not (ReplicatedStorage.SuperCommand:FindFirstChild("Operators")) then
+		local Operators = Instance.new("Folder")
+		Operators.Name = "Operators"
+		Operators.Parent = ReplicatedStorage.SuperCommand
+	end
+
+	if not (ReplicatedStorage:FindFirstChild("Remotes")) then
+		local Remotes = ReplicatedStorage.SuperCommand:FindFirstChild("Remotes") or Instance.new("Folder")
+		Remotes.Name = "Remotes"
+		Remotes.Parent = ReplicatedStorage.SuperCommand
+	end
+
+	self:NewRemoteEvent("Execute",function(Player: Player, CommandName: string, Text: string)
+		local Command = self:FindCommand(CommandName)
+		if not (Command) then return warn(("Didn't find a command by the name '%s'"):format(CommandName)) end
+
+		if not (self:PlayerCanExecuteCommand(Player.UserId, Command)) then return end
+
+		local Arguments = Util:GetArguments(self:InitiateOperators(Text), self.Storage.Types, Command.Arguments)
+
+		-- Typecheck all Arguments
+		for Index: number, Argument: string | {string} in Command.Arguments do
+			local TypeName: string = if (typeof(Argument) == "table") then Argument[1] else Argument
+			if not (typeof(TypeName) == "string") then continue end
+
+			local Type = self:FindType(TypeName)
+			if not (Type) then continue end
+			if not (typeof(Type.Get) == "function") then continue end
+			if (Type.Get(Arguments[Index]) ~= nil) then continue end
+
+			return -- Errored
+		end
+
+		Command:Execute(unpack(Arguments))
+	end)
+
 	-- self:CreateGroupsFromFolder(script.DefaultGroups)
 	-- self:CreateCommandsFromFolder(script.DefaultGroups)
 
@@ -105,7 +141,7 @@ function SuperCommand.Start(): SuperCommandType
 		end
 
 		Player.Chatted:Connect(function(Message: string)
-			local CommandName = Message:match("^%"..self.CommandPrefix.."(%w+)")
+			local CommandName = Message:match("^"..self.CommandPrefix.."(%w+)")
 			if not (CommandName) then return end
 
 			local Command = self:FindCommand(CommandName)
@@ -146,9 +182,20 @@ function SuperCommand:NewEvent(Name: string)
 	return NewEvent
 end
 
+function SuperCommand:NewRemoteEvent(Name: string, Bind: () -> nil)
+	local NewEvent = Instance.new("RemoteEvent")
+
+	NewEvent.Name = Name
+	NewEvent.Parent = ReplicatedStorage.SuperCommand:WaitForChild("Remotes", 10)
+
+	NewEvent.OnServerEvent:Connect(Bind)
+
+	return NewEvent
+end
+
 -- Groups
 
-function SuperCommand:CreateGroup(Name: string, Weight: number): Group.GroupType | nil
+function SuperCommand:CreateGroup(Name: string, Weight: number): Group.GroupType?
 	if not (Name) then return end
 	if not (Weight) then return end
 
@@ -158,7 +205,7 @@ function SuperCommand:CreateGroup(Name: string, Weight: number): Group.GroupType
 	return NewGroup
 end
 
-function SuperCommand:CreateGroupFromModule(ModuleScript: ModuleScript): Group.GroupType | nil
+function SuperCommand:CreateGroupFromModule(ModuleScript: ModuleScript): Group.GroupType?
 	if not (typeof(ModuleScript) == "Instance") then return end
 	if not (ModuleScript:IsA("ModuleScript")) then return end
 
@@ -188,7 +235,7 @@ end
 
 -- Commands
 
-function SuperCommand:CreateCommand(Info: Command.CommandType): Command.CommandType | nil
+function SuperCommand:CreateCommand(Info: Command.CommandType): Command.CommandType?
 	if not (Info) then return end
 
 	local NewCommand = Command:Create(Info)
@@ -197,7 +244,7 @@ function SuperCommand:CreateCommand(Info: Command.CommandType): Command.CommandT
 	return NewCommand
 end
 
-function SuperCommand:CreateCommandFromModule(ModuleScript: ModuleScript): Command.CommandType | nil
+function SuperCommand:CreateCommandFromModule(ModuleScript: ModuleScript): Command.CommandType?
 	if not (typeof(ModuleScript) == "Instance") then return end
 	if not (ModuleScript:IsA("ModuleScript")) then return end
 
@@ -215,7 +262,7 @@ function SuperCommand:CreateCommandsFromFolder(Directory: Instance)
 	end
 end
 
-function SuperCommand:FindCommand(CommandName: string): Command.CommandType | nil
+function SuperCommand:FindCommand(CommandName: string): Command.CommandType?
 	if not (typeof(CommandName) == "string") then return end
 
 	for _, Command: Command.CommandType in pairs(self.Storage.Commands) do
@@ -225,7 +272,7 @@ function SuperCommand:FindCommand(CommandName: string): Command.CommandType | ni
 	end
 end
 
-function SuperCommand:PlayerCanExecuteCommand(Player: Player, CommandToCheck: Command.CommandType): boolean | nil
+function SuperCommand:PlayerCanExecuteCommand(UserId: number, CommandToCheck: Command.CommandType): boolean?
 	if not (CommandToCheck) then return end
 
 	local GroupToCheck = self:FindGroup(CommandToCheck.Permission)
@@ -233,7 +280,7 @@ function SuperCommand:PlayerCanExecuteCommand(Player: Player, CommandToCheck: Co
 
 	for _, Command in pairs(self.Storage.Commands) do
 		for _, Group in pairs(self.Storage.Groups) do
-			if not (Group) or ((Group.Weight >= GroupToCheck.Weight) and Group:PlayerIsInGroup(Player)) then
+			if not (Group) or ((Group.Weight >= GroupToCheck.Weight) and Group:PlayerIsInGroup(UserId)) then
 				return true
 			end
 		end
@@ -244,7 +291,7 @@ end
 
 -- Types
 
-function SuperCommand:CreateType(ModuleScript: ModuleScript): Type.Type | nil
+function SuperCommand:CreateType(ModuleScript: ModuleScript): Type.Type?
 	if not (ModuleScript) then return end
 
 	ModuleScript:Clone().Parent = ReplicatedStorage:WaitForChild("SuperCommand"):WaitForChild("Types")
@@ -258,7 +305,17 @@ function SuperCommand:CreateType(ModuleScript: ModuleScript): Type.Type | nil
 	return NewType
 end
 
--- function SuperCommand:CreateTypeFromModule(ModuleScript: ModuleScript): Type.Type | nil
+function SuperCommand:FindType(TypeName: string): Type.Type?
+	if not (typeof(TypeName) == "string") then return end
+
+	for _, Type in pairs(self.Storage.Types) do
+		if (Type.Name:lower() == TypeName:lower()) then
+			return Type
+		end
+	end
+end
+
+-- function SuperCommand:CreateTypeFromModule(ModuleScript: ModuleScript): Type.Type?
 -- 	if not (typeof(ModuleScript) == "Instance") then return end
 -- 	if not (ModuleScript:IsA("ModuleScript")) then return end
 
@@ -278,17 +335,17 @@ end
 
 -- Operators
 
-function SuperCommand:CreateOperator(Pattern: string, Get: (FoundPattern: string) -> string): Operator.OperatorType | nil
+function SuperCommand:CreateOperator(Pattern: string, Get: (FoundPattern: string) -> string, ReturnType: string): Operator.OperatorType?
 	if not (typeof(Pattern) == "string") then return end
 	if not (typeof(Get) == "function") then return end
 
-	local NewOperator = Operator:Create(Pattern, Get)
+	local NewOperator = Operator:Create(Pattern, Get, ReturnType)
 	table.insert(self.Storage.Operators, NewOperator)
 
 	return NewOperator
 end
 
-function SuperCommand:CreateOperatorFromModule(ModuleScript: ModuleScript): Operator.OperatorType | nil
+function SuperCommand:CreateOperatorFromModule(ModuleScript: ModuleScript): Operator.OperatorType?
 	if not (typeof(ModuleScript) == "Instance") then return end
 	if not (ModuleScript:IsA("ModuleScript")) then return end
 

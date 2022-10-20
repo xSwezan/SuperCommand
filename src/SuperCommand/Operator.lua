@@ -1,5 +1,8 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 export type OperatorType = {
 	Pattern: string;
+	ReturnType: string;
 
 	Get: (Arguments...) -> string;
 }
@@ -27,11 +30,17 @@ Operator.__index = Operator
 	@param Get (FoundPattern: string) -> string -- Function that will return the replacement for the pattern
 	@return OperatorClass
 ]=]
-function Operator:Create(Pattern: string, Get: (FoundPattern: string) -> string): OperatorType
+function Operator:Create(Pattern: string, Get: (FoundPattern: string) -> string, ReturnType: any?): OperatorType
 	local self = setmetatable({}, Operator)
 
 	self.Pattern = Pattern
+	self.ReturnType = ReturnType
 	self.__Get = Get
+
+	local NewOperator = Instance.new("StringValue")
+	NewOperator.Name = Pattern
+	NewOperator.Value = ReturnType or ""
+	NewOperator.Parent = ReplicatedStorage.SuperCommand.Operators
 	
 	return self
 end

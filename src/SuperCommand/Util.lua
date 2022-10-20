@@ -34,4 +34,8 @@ function Util:GetArguments(Message: string, AvailableTypes: {}, CommandArguments
 	return Arguments
 end
 
+function Util:IgnoreMagicCharacters(Str: string): string
+	return Str:gsub("([%$%%%^%*%(%)%.%[%]%+%-%?])", "%%%1")
+end
+
 return Util

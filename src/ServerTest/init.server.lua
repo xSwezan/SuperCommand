@@ -1,5 +1,4 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ServerStorage = game:GetService("ServerStorage")
+local StarterPack = game:GetService("StarterPack")
 local SuperCommand = require(script.Parent.SuperCommand).Start()
 
 local Owner = SuperCommand:CreateGroup("Owner", 255)
@@ -25,7 +24,7 @@ SuperCommand:CreateCommand{
 
 SuperCommand:CreateCommand{
 	Name = "Up";
-	Arguments = {"Player", "number"};
+	Arguments = {"Player", {"number", "Studs"}};
 	Permission = "Admin";
 	Execute = function(Player: Player, Height: number)
 		if not (Player) then return end
@@ -56,6 +55,7 @@ SuperCommand:CreateCommand{
 	Arguments = {"Color"};
 	Execute = function(Color: Color3)
 		if not (typeof(Color) == "Color3") then return end
+
 		workspace.Baseplate.Color = Color
 	end;
 }
@@ -68,15 +68,15 @@ SuperCommand:CreateCommand{
 	end;
 }
 
-SuperCommand:CreateOperator("rand<(%d+),(%d+)>",function(Min: string, Max: string)
+SuperCommand:CreateOperator("random%((%d+),(%d+)%)",function(Min: string, Max: string)
 	return math.random(tonumber(Min), tonumber(Max))
-end)
+end,"number")
 
 SuperCommand:CreateOperator("foo",function()
 	return "bar"
 end)
 
 SuperCommand.CommandExecuted:Connect(function(Player: Player, Command: SuperCommand.CommandType)
-	-- print(Player)
-	-- print(Command)
+	print(Player)
+	print(Command)
 end)

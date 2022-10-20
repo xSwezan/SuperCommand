@@ -5,8 +5,8 @@ export type GroupType = {
 
 	AssignPlayer: (UserId: number) -> nil;
 	AssignPlayers: ({UserId: number}) -> nil;
-	PlayerIsInGroup: (Player: Player) -> boolean | nil;
-	AutoAssign: ((Player: Player) -> boolean | nil) -> boolean | nil;
+	PlayerIsInGroup: (UserId: number) -> boolean | nil;
+	AutoAssign: ((UserId: number) -> boolean | nil) -> boolean | nil;
 }
 
 --[=[
@@ -87,18 +87,18 @@ end
 --[=[
 	Check if certain player is in the Group
 
-	@param Player Player -- Player to check for
+	@param UserId number -- Player to check for
 	@return boolean | nil
 ]=]
-function Group:PlayerIsInGroup(Player: Player): boolean | nil
-	if not (Player) then return end
+function Group:PlayerIsInGroup(UserId: number): boolean | nil
+	if not (UserId) then return end
 
-	if (table.find(self.Players, Player.UserId)) then
+	if (table.find(self.Players, UserId)) then
 		return true
 	end
 
 	if (self.__IsMember) then
-		return self.__IsMember(Player)
+		return self.__IsMember(UserId)
 	end
 
 	return false
@@ -107,10 +107,10 @@ end
 --[=[
 	Auto Assigns players for you
 
-	@param Get (Player: Player) -> boolean | nil -- Function that returns a boolean depending if the player should be assigned to the Group
+	@param Get (UserId: number) -> boolean | nil -- Function that returns a boolean depending if the player should be assigned to the Group
 	@return nil
 ]=]
-function Group:AutoAssign(Get: (Player) -> boolean | nil)
+function Group:AutoAssign(Get: (UserId: number) -> boolean | nil)
 	if not (typeof(Get) == "function") then return end
 
 	self.__IsMember = Get

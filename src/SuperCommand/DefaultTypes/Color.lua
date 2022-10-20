@@ -1,14 +1,12 @@
 local RGBFormat = "^(%d+),[%s]?(%d+),[%s]?(%d+)$"
 
 local function IsHex(Str: string)
-	return Str:match("^%x%x%x%x%x%x$")
+	return string.match(Str, "^%x%x%x%x%x%x$")
 end
 
 return {
 	Convert = function(Message: string): Color3 | nil
 		if not (Message) then return end
-	
-		print(Message)
 	
 		local R, G, B = Message:match(RGBFormat)
 	

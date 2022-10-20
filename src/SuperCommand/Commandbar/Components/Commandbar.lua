@@ -16,8 +16,14 @@ local Component = Roact.Component:extend(script.Name)
 local SuperCommand = ReplicatedStorage:WaitForChild("SuperCommand", 10)
 if not (SuperCommand) then return {} end
 
+local RemotesFolder = SuperCommand:WaitForChild("Remotes", 10)
+if not (RemotesFolder) then return {} end
+
 local CommandsFolder = SuperCommand:WaitForChild("Commands", 10)
 if not (CommandsFolder) then return {} end
+
+local OperatorsFolder = SuperCommand:WaitForChild("Operators", 10)
+if not (OperatorsFolder) then return {} end
 
 local TypesFolder = SuperCommand:WaitForChild("Types", 10)
 if not (TypesFolder) then return {} end
@@ -41,6 +47,10 @@ local CommandsLayout = {
 }
 ]]
 
+local function ReplaceMagicCharacters(Str: string, Replacement: string): string
+	return Str:gsub("([%$%%%^%*%(%)%.%[%]%+%-%?])", Replacement)
+end
+
 function Component:GetCommands()
 	local Commands = {}
 	for _, Command in pairs(CommandsFolder:GetChildren()) do
@@ -62,47 +72,47 @@ function Component:GetCommands()
 	return Commands
 end
 
-function Component:SplitMessage(Message: string): {string}
+function Component:SplitMessage(Message: string, DontRemoveMagic: boolean): {string}
 	local Format = "(%b\"\")"
 	local ReplacementFormat = "|\"|\"|"
 	local SpaceReplacement = "?|?"
 
-	local Formatted = Message:gsub(Format, ReplacementFormat):gsub(" ", SpaceReplacement)
+	-- Message = IgnoreMagicCharacters(Message:gsub("%p", ""))
+	Message = if (DontRemoveMagic) then Message else ReplaceMagicCharacters(Message, "")
+
+	local Formatted: string = Message:gsub(Format, ReplacementFormat):gsub(" ", SpaceReplacement)
 	
-	for Replacement: string in Message:gmatch(Format) do
-		Formatted = Formatted:gsub(ReplacementFormat, Replacement:gsub("\"", ""), 1)
+	for Replacement: string in string.gmatch(Message, Format) do
+		Formatted = string.gsub(
+			Formatted,
+			ReplacementFormat,
+			string.gsub(Replacement, "\"", ""),
+			1
+		)
 	end
 
 	return Formatted:split(SpaceReplacement)
 end
 
-local function Count(Table: {})
-	local Length = 0
-	table.foreach(Table or {}, function()
-		Length += 1
-	end)
-	return Length
-end
-
-function Component:GetCurrentCommand(Text)
-	local CurrentArguments = self:SplitMessage(Text)
-	local CommandName = CurrentArguments[1]
+function Component:GetCurrentCommand(Text: string)
+	local CurrentArguments: {string} = self:SplitMessage(Text)
+	local CommandName: string = CurrentArguments[1]
 
 	local Commands = self:GetCommands()
 	
-	for _, Command in pairs(Commands) do
-		if (Command.Name == CommandName) then
-			return Command
-		end
+	for _, Command in Commands do
+		if (string.lower(Command.Name) ~= string.lower(CommandName)) then continue end
+
+		return Command
 	end
 end
 
 function Component:MatchesOneInList(String: string, List: {string}): boolean | nil
 	if not (String) then return end
 	for _, Argument in pairs(List or {}) do
-		if (Argument:match("^"..String)) then
-			return true
-		end
+		if not (Argument:match("^"..String)) then continue end
+
+		return true
 	end
 	return false
 end
@@ -110,18 +120,65 @@ end
 function Component:GetSuggestionsFor(Table: {}, String: string)
 	local Suggestions = {}
 	for _, Argument in pairs(Table or {}) do
-		if (Argument:match("^"..String)) then
-			table.insert(Suggestions, Argument)
-		end
+		if not (Argument:match("^"..String)) then continue end
+
+		table.insert(Suggestions, Argument)
 	end
 	return Suggestions
 end
 
-function Component:IsSuggestion()
-	
+function Component:IsAnOperator(Text: string, ArgumentIndex: string, Type: string)
+	for _, OperatorValue: StringValue in OperatorsFolder:GetChildren() do
+		if (OperatorValue.Value ~= Type) then continue end
+
+		local Args = self:SplitMessage(Text, true)
+		if not (string.match(Args[ArgumentIndex], "^"..OperatorValue.Name.."$")) then continue end
+
+		return true
+	end
 end
 
-function Component:GetAutoComplete(Text)
+function Component:ConvertOperators(Text: string)
+	local TypeConversions = {
+		number = 0;
+	}
+
+	for _, OperatorValue: StringValue in OperatorsFolder:GetChildren() do
+		local Type = OperatorValue.Value
+		Text = Text:gsub(OperatorValue.Name, TypeConversions[Type] or Type)
+	end
+
+	return Text
+end
+
+function Component:GetArgumentDescriptionPosition(TextBox: TextBox): UDim2
+	local ArgumentDescriptionRef: Frame = self.ArgumentDescriptionRef:getValue()
+	local ADSize: Vector2 = ArgumentDescriptionRef.AbsoluteSize
+
+	local SuggestionsList: Frame = self.SuggestionsRef:getValue()
+	local SuggestionsSize: Vector2 = SuggestionsList.AbsoluteSize
+
+	local _, _, _, _, Suggestions = self:GetAutoComplete(self.state.CurrentText)
+
+	local ExtraMin = if (Suggestions) and (#Suggestions > 0) then ((SuggestionsSize.X + 1) / TextBox.Parent.AbsoluteSize.X) else 0
+
+	local WidthHalf = ((ADSize.X / 2) / TextBox.Parent.AbsoluteSize.X)
+
+	return UDim2.new(
+		math.clamp(
+			((TextBox.TextBounds.X + (TextBox.Parent.AbsoluteSize.X - TextBox.AbsoluteSize.X)) / TextBox.AbsoluteSize.X) * (TextBox.AbsoluteSize.X / TextBox.Parent.AbsoluteSize.X) - .006,
+			0 + WidthHalf + ExtraMin,
+			1 - WidthHalf
+		),
+		0,
+		0,
+		-2
+	)
+end
+
+function Component:GetAutoComplete(Text: string)
+	Text = self:ConvertOperators(Text)
+
 	local CurrentArguments = self:SplitMessage(Text)
 	local CurrentString = CurrentArguments[#CurrentArguments]
 	
@@ -138,34 +195,50 @@ function Component:GetAutoComplete(Text)
 	local CurrentArgumentNeeded = ArgumentsNeeded[math.clamp(#CurrentArguments - 1, 1, math.huge)]
 	if not (CurrentArgumentNeeded) then return ("No argument found with Index #%d"):format(#CurrentArguments) end
 
+	local ArgumentName = tostring(CurrentArgumentNeeded.Name)
+	local ArgumentType = tostring(CurrentArgumentNeeded.Type)
+
+	local ArgumentTypeText: string = if (ArgumentName == ArgumentType) then ArgumentName elseif (ArgumentType == "nil") then "" else ("%s: %s"):format(ArgumentName, ArgumentType)
+
 	for Index = 1, #CurrentArguments do
 		local StringArgument = CurrentArguments[Index]
 		local Argument = ArgumentsNeeded[Index - 1]
 
-		if (StringArgument) and (Argument) and (StringArgument ~= "") then
-			local TypeModule = TypesFolder:FindFirstChild(Argument.Type)
-			if (TypeModule) and (TypeModule:IsA("ModuleScript")) then
-				local Type = require(TypeModule)
-				if (Type) and (typeof(Type.Convert) == "function") and (Type.Convert(StringArgument) == nil) then
-					local CanError = true
-					if (typeof(Type.Get) == "function") and (typeof(Type.Get) == "function") then
-						if (#self:GetSuggestionsFor(Type.Get(), StringArgument) > 0) then
-							CanError = false
-						end
-					end
-					if (CanError) then
-						return ("Expected type '%s' in Argument #%d!"):format(Argument.Type, Index)
-					end
-				end
-			end
+		if not (StringArgument) then continue end
+		if not (Argument) then continue end
+		if (StringArgument == "") then continue end
+
+		local Type = self:GetType(Argument.Type)
+		if not (Type) then continue end
+		if (typeof(Type.Convert) ~= "function") then continue end
+		if (Type.Convert(StringArgument) ~= nil) then continue end
+
+		-- Argument should error, but lets check for mistakes
+
+		local CanError = true
+
+		-- Has suggestions?
+		if (typeof(Type.Get) == "function") and (typeof(Type.Get) == "function") and (#self:GetSuggestionsFor(Type.Get(), StringArgument) > 0) then
+			CanError = false
 		end
+
+		-- Is an Operator?
+		--[[ OLD
+		if (self:IsAnOperator(Text, Index, Argument.Type)) then
+			CanError = false
+		end
+		]]
+
+		if not (CanError) then continue end
+
+		return ("Expected type '%s' in Argument #%d!"):format(Argument.Type, Index)
 	end
 
 	local Suggestions = {}
 	local List
 	local SuggestionText
 
-	local TypeModule: ModuleScript = ReplicatedStorage.SuperCommand:WaitForChild("Types"):FindFirstChild(CurrentArgumentNeeded.Type or "")
+	local TypeModule: ModuleScript? = TypesFolder:FindFirstChild(CurrentArgumentNeeded.Type or "")
 	local Type: {}? = if (TypeModule) then require(TypeModule) else nil
 
 	if (#ArgumentsNeeded == 0) then
@@ -175,54 +248,40 @@ function Component:GetAutoComplete(Text)
 		for _, Command in pairs(ArgumentsNeeded) do
 			table.insert(List, Command.Name)
 		end
-	elseif (#ArgumentsNeeded > 0) then
-		if (TypeModule) and (Type) and (typeof(Type.Get) == "function") then
-			List = Type.Get()
-			if (typeof(List) == "table") then
-				local DidFind = false
-				for _, String in pairs(List) do
-					if not (String:match("^"..CurrentString)) then continue end
+	elseif (#ArgumentsNeeded > 0) and (TypeModule) and (Type) and (typeof(Type.Get) == "function") then
+		List = Type.Get()
+		if (typeof(List) == "table") then
+			local DidFind = false
+			for _, String in pairs(List) do
+				if not (String:match("^"..CurrentString)) then continue end
 
-					DidFind = true
-					break
-				end
-				if not (DidFind) then
-					return ("'%s' is not a valid type '%s'"):format(CurrentString, CurrentArgumentNeeded.Type)
-				end
+				DidFind = true
+				break
 			end
-			SuggestionText = if (CurrentString == "") then
-				(if (CurrentArgumentNeeded.Name == CurrentArgumentNeeded.Type) then
-					CurrentArgumentNeeded.Type
-				else
-					("%s: %s"):format(CurrentArgumentNeeded.Name, CurrentArgumentNeeded.Type))
-			else
-				SuggestionText
+			if not (DidFind) then
+				return ("'%s' is not a valid type '%s'"):format(CurrentString, CurrentArgumentNeeded.Type)
+			end
 		end
 	end
 
 	for _, Argument in pairs(List or {}) do
-		if (Argument:match("^"..CurrentString)) then
-			table.insert(Suggestions, Argument)
-		end
+		if not (Argument:match("^"..CurrentString)) then continue end
+
+		table.insert(Suggestions, Argument)
 	end
 
-	-- Check if Argument is correct then return true
-	-- print("\n\n\n")
-	-- print(CurrentArgumentNeeded)
-	-- print(CurrentString)
-	-- print(Type)
-	-- if (Type) and (typeof(Type.Convert) == "function") and (typeof(Type.Convert(CurrentString)) == CurrentArgumentNeeded.Type) then
-	-- 	return nil
-	-- end
-	
 	if
 		((List and #List > 0 and #Suggestions > 0) or (SuggestionText))
 		or
-		((Type) and (typeof(Type.Convert) == "function") and (typeof(Type.Convert(CurrentString)) == CurrentArgumentNeeded.Type)) -- Argument is correct type
+		((Type) and (typeof(Type.Convert) == "function") and ((Type.Convert(CurrentString) or nil) ~= nil)) -- Argument Typechecking: Argument is correct type
+		or
+		(CurrentString == "") -- Player hasn't started writing the argument yet
+		-- or
+		-- (self:IsAnOperator(Text, #CurrentArguments, CurrentArgumentNeeded.Type)) -- Is an Operator
 	then
 		-- No error
 		self.SuggestionsIndex = math.clamp(self.SuggestionsIndex, 1, math.clamp(#Suggestions, 1, math.huge))
-		return nil, SuggestionText or Suggestions[self.SuggestionsIndex], Whitespace, false, Suggestions, ArgumentsNeeded
+		return nil, (SuggestionText or Suggestions[self.SuggestionsIndex]), Whitespace, false, Suggestions, ArgumentsNeeded, ArgumentTypeText
 	end
 
 	return ("Invalid argument #%s '%s' in '%s'"):format(#CurrentArguments, CurrentString, (CurrentCommand ~= nil) and CurrentCommand.Name or "Commands")
@@ -247,15 +306,20 @@ function Component:SyntaxHighlighting(Text)
 
 	local Props = {}
 
+	Text = ReplaceMagicCharacters(Text, "´´``å%1")
+
 	for Index, Info in pairs(SyntaxHighlighting_Patterns) do
 		local FinalString = ""
 		local LastEnd = 0
 		for _, Pattern in pairs(Info.Patterns) do
-			string.gsub(Text, Pattern, function(String)
-				local Start, End = string.find(Text, String, LastEnd)
+			string.gsub(ReplaceMagicCharacters(Text, "%%%1"), Pattern, function(String)
+				local Start, End = string.find(Text, String, if (LastEnd == 0) then LastEnd else LastEnd + 1)
+				if not (Start) or not (End) then return end
+
 				local Whitespace = (Start - LastEnd - 1)
 				LastEnd = End
-				FinalString = FinalString..(" "):rep(Whitespace)..String
+
+				FinalString = FinalString..(" "):rep(Whitespace)..String:gsub("´´``å%%", "")
 	
 				return ""
 			end)
@@ -275,7 +339,7 @@ function Component:SyntaxHighlighting(Text)
 			TextXAlignment = Enum.TextXAlignment.Left;
 			Font = Enum.Font.Code;
 
-			ZIndex = 100 + Index;
+			ZIndex = (100 + Index);
 		});
 	end
 
@@ -294,7 +358,7 @@ function Component:GetSuggestionComponents()
 
 			BorderSizePixel = 0;
 			BackgroundTransparency = .25;
-			BackgroundColor3 = (CurrentAutoComplete == SuggestionText) and Color3.fromRGB(50,50,50) or Color3.fromRGB();
+			BackgroundColor3 = (CurrentAutoComplete == SuggestionText) and Color3.fromRGB(10,10,10) or Color3.fromRGB();
 
 			LayoutOrder = Index;
 		},{
@@ -308,26 +372,57 @@ function Component:GetSuggestionComponents()
 
 				Text = (" %s "):format(SuggestionText);
 				TextScaled = true;
-				TextColor3 = Color3.fromRGB(255,255,255);
+				TextColor3 = if (CurrentAutoComplete == SuggestionText) then Color3.fromRGB(0, 170, 255) else Color3.fromRGB(255,255,255);
 				TextXAlignment = Enum.TextXAlignment.Left;
 				Font = Enum.Font.Code;
 			});
 		});
 	end
-
 	return Roact.createFragment(Props)
+end
+
+function Component:GetType(TypeName: string)
+	if not (TypeName) then return end
+
+	local TypeModule = TypesFolder:FindFirstChild(TypeName)
+	if not (typeof(TypeModule) == "Instance") then return end
+	if not (TypeModule:IsA("ModuleScript")) then return end
+
+	return require(TypeModule)
+end
+
+function Component:GetArguments(): {{Name: string, Value: any}}
+	local Arguments = {}
+	local CurrentArguments = self:SplitMessage(self.state.CurrentText)
+
+	local Command = self:GetCurrentCommand(self.state.CurrentText)
+	if not (Command) then return end
+
+	for Index, ArgumentText: string in CurrentArguments do
+		if (Index == 1) then continue end
+
+		local ArgumentInfo: {Name: string, Type: string} = Command.Arguments[Index - 1]
+		local Type = self:GetType(ArgumentInfo.Type)
+
+		table.insert(Arguments,{
+			Name = ArgumentInfo.Name;
+			Type = ArgumentInfo.Type;
+			Value = Type.Convert(ArgumentText);
+		})
+	end
+	return Arguments
 end
 
 function Component:init()
 	self:setState{
 		HoldingOnBar = false;
+		Focused = false;
 
 		AutoCompleteText = "";
 		AutoCompleteFound = false;
 
 		ErrorText = "";
 
-		ArgumentDescriptionPosition = 0;
 		ArgumentDescription = "";
 
 		NormalTextColor = Color3.fromRGB(255,255,255);
@@ -336,6 +431,9 @@ function Component:init()
 
 		CurrentText = "";
 	}
+
+	self.ArgumentDescriptionRef = Roact.createRef()
+	self.SuggestionsRef = Roact.createRef()
 
 	self.SuggestionsIndex = 1
 	self.LastDeepIndex = 0
@@ -350,15 +448,15 @@ function Component:init()
 			self.SuggestionsIndex = math.clamp(self.SuggestionsIndex + ToAdd, 1, math.huge)
 
 			local _, AutoComplete, Whitespace = self:GetAutoComplete(self.state.CurrentText)
-			self:setState{
-				AutoCompleteText = (" "):rep(Whitespace or 0)..(AutoComplete or "");
-			}
+			self:setState{AutoCompleteText = (" "):rep(Whitespace or 0)..(AutoComplete or "")}
 		end
 	end)
 
 	self.style, self.api = RoactSpring.Controller.new{
 		BarPosition = self.BarBottomPosition;
 		BarExtraAnchorPoint = Vector2.new(0,1);
+
+		ArgumentDescriptionPosition = UDim2.fromOffset(0,-2);
 
 		config = {
 			tension = 2000;
@@ -458,27 +556,18 @@ function Component:render()
 						local AutoComplete = Suggestions[self.SuggestionsIndex]
 						if not (AutoComplete) then return end
 
-						if (typeof(AvailableArguments) == "function") then
-							AvailableArguments = AvailableArguments()
-						end
+						-- print(AvailableArguments)
 
-						local NextArguments = AvailableArguments[AutoComplete]
-						if (typeof(NextArguments) == "function") then
-							NextArguments = NextArguments()
-						end
-
-						local SpaceEnd = (Count(NextArguments) > 0) and " " or ""
-
-						if (#AutoComplete:split(" ") > 1) then
-							AutoComplete = ("\"%s\""):format(AutoComplete)
-						end
-
+						local SpaceEnd = ""-- (Count(NextArguments) > 0) and " " or ""
 						local Cutout = TextBox.Text:sub(0, #TextBox.Text:split("") - #CurrentArg:split("") + 1)
-	
+
+						AutoComplete = if (#AutoComplete:split(" ") > 1) then ("\"%s\""):format(AutoComplete) else AutoComplete
+
 						TextBox.Text = Cutout..AutoComplete..SpaceEnd
 						TextBox.CursorPosition = #TextBox.Text:split("") + 1
 					end
-					local Error, AutoComplete, Whitespace, IsComplete = self:GetAutoComplete(TextBox.Text)
+
+					local Error, AutoComplete, Whitespace, IsComplete, Suggestions, AvailableArguments, ArgumentTypeText: string = self:GetAutoComplete(TextBox.Text)
 					self:setState{
 						AutoCompleteText = (" "):rep(Whitespace or 0)..(AutoComplete or "");
 						AutoCompleteFound = (AutoComplete ~= nil);
@@ -488,12 +577,28 @@ function Component:render()
 
 						CurrentText = TextBox.Text;
 
-						ArgumentDescriptionPosition = (TextBox.TextBounds.X / TextBox.AbsoluteSize.X) * (TextBox.AbsoluteSize.X / TextBox.Parent.AbsoluteSize.X);
-						ArgumentDescription = "yes";
+						ArgumentDescription = ArgumentTypeText or "";
+					}
+					self.api:start{
+						ArgumentDescriptionPosition = self:GetArgumentDescriptionPosition(TextBox);
+
+						immediate = true;
 					}
 				end;
+				[Roact.Event.Focused] = function()
+					self:setState{Focused = true}
+				end;
 				[Roact.Event.FocusLost] = function(Rbx: TextBox, EnterPressed: boolean)
+					self:setState{Focused = false}
+
 					if not (EnterPressed) then return end
+
+					local Command = self:GetCurrentCommand(Rbx.Text)
+					-- print(Command)
+
+					local Arguments: {{Name: string, Value: any}} = self:GetArguments()
+
+					RemotesFolder:WaitForChild("Execute"):FireServer(Command.Name, self.state.CurrentText, Arguments)
 					
 					Rbx.Text = ""
 				end
@@ -519,11 +624,11 @@ function Component:render()
 			self:SyntaxHighlighting(self.state.CurrentText);
 		});
 		ErrorFrame = e("Frame",{
-			Size = UDim2.fromScale(0,.8);
+			Size = UDim2.fromScale(0,.7);
 			AutomaticSize = Enum.AutomaticSize.X;
 
-			Position = UDim2.fromScale(0,-.05);
-			AnchorPoint = self.style.BarExtraAnchorPoint; --Vector2.new(0,1);
+			Position = UDim2.fromOffset(0,-2);
+			AnchorPoint = Vector2.new(0,1);
 
 			BorderSizePixel = 0;
 			BackgroundTransparency = .25;
@@ -531,9 +636,9 @@ function Component:render()
 
 			ZIndex = 0;
 
-			Visible = (self.state.ErrorText ~= "");
+			Visible = (self.state.Focused) and (self.state.ErrorText ~= "");
 		},{
-			ErrorLabel = e("TextLabel",{
+			Label = e("TextLabel",{
 				Size = UDim2.fromScale(0,.55);
 				AutomaticSize = Enum.AutomaticSize.X;
 	
@@ -545,7 +650,7 @@ function Component:render()
 				Text = (" %s "):format(self.state.ErrorText);
 				TextScaled = true;
 				TextColor3 = Color3.fromRGB(255,0,0);
-				TextXAlignment = Enum.TextXAlignment.Left;
+				TextXAlignment = Enum.TextXAlignment.Center;
 				Font = Enum.Font.Code;
 
 				LayoutOrder = 1;
@@ -556,11 +661,11 @@ function Component:render()
 			});
 		});
 		ArgumentDescription = e("Frame",{
-			Size = UDim2.fromScale(0,.8);
+			Size = UDim2.fromScale(0,.7);
 			AutomaticSize = Enum.AutomaticSize.X;
 
-			Position = UDim2.fromScale(self.state.ArgumentDescriptionPosition,-.05);
-			AnchorPoint = self.style.BarExtraAnchorPoint; --Vector2.new(0,1);
+			Position = self.style.ArgumentDescriptionPosition;
+			AnchorPoint = Vector2.new(.5,1);
 
 			BorderSizePixel = 0;
 			BackgroundTransparency = .25;
@@ -568,9 +673,11 @@ function Component:render()
 
 			ZIndex = 0;
 
-			Visible = (self.state.ArgumentDescription ~= "") and (self.state.ErrorText == "");
+			Visible = (self.state.Focused) and (self.state.ArgumentDescription ~= "") and (self.state.ErrorText == "");
+
+			[Roact.Ref] = self.ArgumentDescriptionRef;
 		},{
-			ArgumentDescription = e("TextLabel",{
+			Label = e("TextLabel",{
 				Size = UDim2.fromScale(0,.55);
 				AutomaticSize = Enum.AutomaticSize.X;
 	
@@ -581,8 +688,8 @@ function Component:render()
 	
 				Text = (" %s "):format(self.state.ArgumentDescription);
 				TextScaled = true;
-				TextColor3 = Color3.fromRGB(255,0,0);
-				TextXAlignment = Enum.TextXAlignment.Left;
+				TextColor3 = Color3.fromRGB(255,255,255);
+				TextXAlignment = Enum.TextXAlignment.Center;
 				Font = Enum.Font.Code;
 
 				LayoutOrder = 1;
@@ -595,7 +702,7 @@ function Component:render()
 		Suggestions = e("Frame",{
 			Size = UDim2.fromScale(.2,.7);
 
-			Position = UDim2.fromScale(0,-.05);
+			Position = UDim2.fromOffset(0,-2);
 			AnchorPoint = self.style.BarExtraAnchorPoint;
 
 			BorderSizePixel = 0;
@@ -604,7 +711,9 @@ function Component:render()
 
 			ZIndex = 0;
 
-			Visible = true;
+			Visible = self.state.Focused;
+
+			[Roact.Ref] = self.SuggestionsRef;
 		},{
 			e("UIListLayout",{
 				VerticalAlignment = Enum.VerticalAlignment.Bottom;
