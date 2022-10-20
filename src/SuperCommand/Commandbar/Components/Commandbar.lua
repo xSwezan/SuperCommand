@@ -165,6 +165,9 @@ function Component:GetAutoComplete(Text)
 	local List
 	local SuggestionText
 
+	local TypeModule: ModuleScript = ReplicatedStorage.SuperCommand:WaitForChild("Types"):FindFirstChild(CurrentArgumentNeeded.Type or "")
+	local Type: {}? = if (TypeModule) then require(TypeModule) else nil
+
 	if (#ArgumentsNeeded == 0) then
 		return nil, "", 0
 	elseif (#CurrentArguments == 1) then
@@ -173,27 +176,27 @@ function Component:GetAutoComplete(Text)
 			table.insert(List, Command.Name)
 		end
 	elseif (#ArgumentsNeeded > 0) then
-		local TypeModule = ReplicatedStorage.SuperCommand:WaitForChild("Types"):FindFirstChild(CurrentArgumentNeeded.Type or "")
-		if (TypeModule) then
-			local Type = require(TypeModule)
-			if (Type) and (typeof(Type.Get) == "function") then
-				List = Type.Get()
-				if (typeof(List) == "table") then
-					local DidFind = false
-					for _, String in pairs(List) do
-						if (String:match("^"..CurrentString)) then
-							DidFind = true
-							break
-						end
-					end
-					if not (DidFind) then
-						return ("'%s' is not a valid type '%s'"):format(CurrentString, CurrentArgumentNeeded.Type)
-					end
+		if (TypeModule) and (Type) and (typeof(Type.Get) == "function") then
+			List = Type.Get()
+			if (typeof(List) == "table") then
+				local DidFind = false
+				for _, String in pairs(List) do
+					if not (String:match("^"..CurrentString)) then continue end
+
+					DidFind = true
+					break
+				end
+				if not (DidFind) then
+					return ("'%s' is not a valid type '%s'"):format(CurrentString, CurrentArgumentNeeded.Type)
 				end
 			end
-			SuggestionText = (CurrentString == "") and
-			((CurrentArgumentNeeded.Name == CurrentArgumentNeeded.Type) and CurrentArgumentNeeded.Type or ("%s: %s"):format(CurrentArgumentNeeded.Name, CurrentArgumentNeeded.Type)) or
-			SuggestionText
+			SuggestionText = if (CurrentString == "") then
+				(if (CurrentArgumentNeeded.Name == CurrentArgumentNeeded.Type) then
+					CurrentArgumentNeeded.Type
+				else
+					("%s: %s"):format(CurrentArgumentNeeded.Name, CurrentArgumentNeeded.Type))
+			else
+				SuggestionText
 		end
 	end
 
@@ -204,9 +207,20 @@ function Component:GetAutoComplete(Text)
 	end
 
 	-- Check if Argument is correct then return true
-
-
-	if (List and #List > 0 and #Suggestions > 0) or (SuggestionText) then
+	-- print("\n\n\n")
+	-- print(CurrentArgumentNeeded)
+	-- print(CurrentString)
+	-- print(Type)
+	-- if (Type) and (typeof(Type.Convert) == "function") and (typeof(Type.Convert(CurrentString)) == CurrentArgumentNeeded.Type) then
+	-- 	return nil
+	-- end
+	
+	if
+		((List and #List > 0 and #Suggestions > 0) or (SuggestionText))
+		or
+		((Type) and (typeof(Type.Convert) == "function") and (typeof(Type.Convert(CurrentString)) == CurrentArgumentNeeded.Type)) -- Argument is correct type
+	then
+		-- No error
 		self.SuggestionsIndex = math.clamp(self.SuggestionsIndex, 1, math.clamp(#Suggestions, 1, math.huge))
 		return nil, SuggestionText or Suggestions[self.SuggestionsIndex], Whitespace, false, Suggestions, ArgumentsNeeded
 	end
@@ -216,7 +230,7 @@ end
 
 local SyntaxHighlighting_Patterns = {
 	{
-		Name = "Comment";
+		Name = "String";
 		Patterns = {"(%b\"\")"};
 		Color = Color3.fromRGB(0,150,0)
 	};
@@ -312,6 +326,9 @@ function Component:init()
 		AutoCompleteFound = false;
 
 		ErrorText = "";
+
+		ArgumentDescriptionPosition = 0;
+		ArgumentDescription = "";
 
 		NormalTextColor = Color3.fromRGB(255,255,255);
 		ErrorTextColor = Color3.fromRGB(255,0,0);
@@ -430,11 +447,11 @@ function Component:render()
 				[Roact.Event.Changed] = function(TextBox: TextBox, Property: string)
 					if not (Property == "Text") then return end
 	
-					if (TextBox.Text:sub(TextBox.CursorPosition -1, TextBox.CursorPosition) == "\t") then
+					if (TextBox.Text:sub(TextBox.CursorPosition - 1, TextBox.CursorPosition) == "\t") then
 						local Args = self:SplitMessage(TextBox.Text)
 						local CurrentArg = Args[#Args]
 						local RemovedTab = TextBox.Text:gsub("\t", "")
-						local _, Suggestion, Whitespace, IsComplete, Suggestions, AvailableArguments = self:GetAutoComplete(RemovedTab)
+						local Error, Suggestion, Whitespace, IsComplete, Suggestions, AvailableArguments = self:GetAutoComplete(RemovedTab)
 						
 						TextBox.Text = RemovedTab
 
@@ -470,12 +487,15 @@ function Component:render()
 						IsComplete = (IsComplete == true);
 
 						CurrentText = TextBox.Text;
+
+						ArgumentDescriptionPosition = (TextBox.TextBounds.X / TextBox.AbsoluteSize.X) * (TextBox.AbsoluteSize.X / TextBox.Parent.AbsoluteSize.X);
+						ArgumentDescription = "yes";
 					}
 				end;
 				[Roact.Event.FocusLost] = function(Rbx: TextBox, EnterPressed: boolean)
-					if (EnterPressed) then
-						Rbx.Text = ""
-					end
+					if not (EnterPressed) then return end
+					
+					Rbx.Text = ""
 				end
 			},{
 
@@ -533,6 +553,43 @@ function Component:render()
 				ZIndex = 0;
 	
 				Visible = (self.state.ErrorText ~= "");
+			});
+		});
+		ArgumentDescription = e("Frame",{
+			Size = UDim2.fromScale(0,.8);
+			AutomaticSize = Enum.AutomaticSize.X;
+
+			Position = UDim2.fromScale(self.state.ArgumentDescriptionPosition,-.05);
+			AnchorPoint = self.style.BarExtraAnchorPoint; --Vector2.new(0,1);
+
+			BorderSizePixel = 0;
+			BackgroundTransparency = .25;
+			BackgroundColor3 = Color3.fromRGB();
+
+			ZIndex = 0;
+
+			Visible = (self.state.ArgumentDescription ~= "") and (self.state.ErrorText == "");
+		},{
+			ArgumentDescription = e("TextLabel",{
+				Size = UDim2.fromScale(0,.55);
+				AutomaticSize = Enum.AutomaticSize.X;
+	
+				Position = UDim2.fromScale(0,.5);
+				AnchorPoint = Vector2.new(0,.5);
+	
+				BackgroundTransparency = 1;
+	
+				Text = (" %s "):format(self.state.ArgumentDescription);
+				TextScaled = true;
+				TextColor3 = Color3.fromRGB(255,0,0);
+				TextXAlignment = Enum.TextXAlignment.Left;
+				Font = Enum.Font.Code;
+
+				LayoutOrder = 1;
+	
+				ZIndex = 0;
+	
+				Visible = (self.state.ArgumentDescription ~= "");
 			});
 		});
 		Suggestions = e("Frame",{
