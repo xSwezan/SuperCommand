@@ -171,8 +171,8 @@ function Component:GetArgumentDescriptionPosition(TextBox: TextBox): UDim2
 			1 - WidthHalf
 		),
 		0,
-		0,
-		-2
+		if (self.state.IsTop) then 1 else 0,
+		if (self.state.IsTop) then 2 else -2
 	)
 end
 
@@ -198,7 +198,7 @@ function Component:GetAutoComplete(Text: string)
 	local ArgumentName = tostring(CurrentArgumentNeeded.Name)
 	local ArgumentType = tostring(CurrentArgumentNeeded.Type)
 
-	local ArgumentTypeText: string = if (ArgumentName == ArgumentType) then ArgumentName elseif (ArgumentType == "nil") then "" else ("%s: %s"):format(ArgumentName, ArgumentType)
+	local ArgumentTypeText: string = if (ArgumentName == ArgumentType) then ArgumentName elseif (ArgumentType == "nil") then "" else ("<font color='rgb(0,170,255)'>%s:</font> %s"):format(ArgumentName, ArgumentType)
 
 	for Index = 1, #CurrentArguments do
 		local StringArgument = CurrentArguments[Index]
@@ -346,32 +346,39 @@ function Component:SyntaxHighlighting(Text)
 	return Roact.createFragment(Props)
 end
 
-function Component:GetSuggestionComponents()
+function Component:GetSuggestionComponents(OnlySuggestions: boolean?)
 	local _, CurrentAutoComplete, _, _, Suggestions = self:GetAutoComplete(self.state.CurrentText)
 	if not (Suggestions) then return end
+
+	if (OnlySuggestions) then
+		return Suggestions
+	end
 
 	local Props = {}
 
 	for Index, SuggestionText in pairs(Suggestions) do
 		Props[SuggestionText] = e("Frame",{
-			Size = UDim2.fromScale(1,1);
+			Size = UDim2.fromScale(1,0);
+			AutomaticSize = Enum.AutomaticSize.Y;
 
 			BorderSizePixel = 0;
-			BackgroundTransparency = .25;
+			BackgroundTransparency = 1;--.25;
 			BackgroundColor3 = (CurrentAutoComplete == SuggestionText) and Color3.fromRGB(10,10,10) or Color3.fromRGB();
 
 			LayoutOrder = Index;
 		},{
-			e("TextLabel",{
-				Size = UDim2.fromScale(1,.7);
+			Suggestion = e("TextLabel",{
+				Size = UDim2.fromScale(1,0);
+				AutomaticSize = Enum.AutomaticSize.Y;
 
-				Position = UDim2.fromScale(.5,.5);
-				AnchorPoint = Vector2.new(.5,.5);
+				Position = UDim2.fromScale(.5,0);
+				AnchorPoint = Vector2.new(.5,0);
 
 				BackgroundTransparency = 1;
 
-				Text = (" %s "):format(SuggestionText);
-				TextScaled = true;
+				Text = SuggestionText;
+				TextSize = 20;
+				-- TextScaled = true;
 				TextColor3 = if (CurrentAutoComplete == SuggestionText) then Color3.fromRGB(0, 170, 255) else Color3.fromRGB(255,255,255);
 				TextXAlignment = Enum.TextXAlignment.Left;
 				Font = Enum.Font.Code;
@@ -438,8 +445,8 @@ function Component:init()
 	self.SuggestionsIndex = 1
 	self.LastDeepIndex = 0
 
-	self.BarTopPosition = UDim2.fromScale(.5,.05)
-	self.BarBottomPosition = UDim2.fromScale(.5,.95)
+	self.BarTopPosition = UDim2.new(.5,0,0,5)
+	self.BarBottomPosition = UDim2.new(.5,0,1,-5)
 
 	UserInputService.InputBegan:Connect(function(Input, GP)
 		if not (GP) then return end
@@ -454,7 +461,10 @@ function Component:init()
 
 	self.style, self.api = RoactSpring.Controller.new{
 		BarPosition = self.BarBottomPosition;
+		BarAnchorPoint = Vector2.new(.5,1);
 		BarExtraAnchorPoint = Vector2.new(0,1);
+
+		IsTop = false;
 
 		ArgumentDescriptionPosition = UDim2.fromOffset(0,-2);
 
@@ -467,10 +477,10 @@ end
 
 function Component:render()
 	return e("Frame",{
-		Size = UDim2.fromScale(.95,.05);
+		Size = UDim2.new(1,-10,.04,0);
 
 		Position = self.style.BarPosition;
-		AnchorPoint = Vector2.new(.5,.5);
+		AnchorPoint = self.style.BarAnchorPoint;
 
 		BorderSizePixel = 0;
 		BackgroundTransparency = .25;
@@ -487,7 +497,12 @@ function Component:render()
 
 				local IsOnTop = (MouseY < (MaxY / 2))
 				self.api:start{
-					BarPosition = (IsOnTop == true) and self.BarTopPosition or self.BarBottomPosition;
+					BarPosition = if (IsOnTop) then self.BarTopPosition else self.BarBottomPosition;
+					BarAnchorPoint = if (IsOnTop) then Vector2.new(.5,0) else Vector2.new(.5,1)
+				}
+
+				self:setState{
+					IsTop = (IsOnTop == true);
 				}
 			end
 		end;
@@ -498,6 +513,7 @@ function Component:render()
 			self:setState{HoldingOnBar = false}
 		end;
 	},{
+		e(require(script.UICorner));
 		Inside = e("Frame",{
 			Size = UDim2.fromScale(1,1);
 
@@ -507,10 +523,10 @@ function Component:render()
 			BackgroundTransparency = 1;
 		},{
 			e("UIPadding",{
-				PaddingTop = UDim.new(.2,0);
-				PaddingBottom = UDim.new(.2,0);
-				PaddingRight = UDim.new(.006,0);
-				PaddingLeft = UDim.new(.006,0);
+				PaddingTop = UDim.new(0,10);
+				PaddingBottom = UDim.new(0,10);
+				PaddingRight = UDim.new(0,10);
+				PaddingLeft = UDim.new(0,10);
 			});
 			e("TextLabel",{
 				Size = UDim2.fromScale(.02,1);
@@ -553,6 +569,8 @@ function Component:render()
 						
 						TextBox.Text = RemovedTab
 
+						if not (Suggestions) then return end
+
 						local AutoComplete = Suggestions[self.SuggestionsIndex]
 						if not (AutoComplete) then return end
 
@@ -594,16 +612,12 @@ function Component:render()
 					if not (EnterPressed) then return end
 
 					local Command = self:GetCurrentCommand(Rbx.Text)
-					-- print(Command)
+					if not (Command) then return end
 
-					local Arguments: {{Name: string, Value: any}} = self:GetArguments()
+					RemotesFolder:WaitForChild("Execute"):FireServer(Command.Name, self.state.CurrentText)
 
-					RemotesFolder:WaitForChild("Execute"):FireServer(Command.Name, self.state.CurrentText, Arguments)
-					
 					Rbx.Text = ""
 				end
-			},{
-
 			});
 			AutoComplete = e("TextLabel",{
 				Size = UDim2.fromScale(.98,1);
@@ -624,11 +638,11 @@ function Component:render()
 			self:SyntaxHighlighting(self.state.CurrentText);
 		});
 		ErrorFrame = e("Frame",{
-			Size = UDim2.fromScale(0,.7);
-			AutomaticSize = Enum.AutomaticSize.X;
+			Size = UDim2.fromScale(0,0);
+			AutomaticSize = Enum.AutomaticSize.XY;
 
-			Position = UDim2.fromOffset(0,-2);
-			AnchorPoint = Vector2.new(0,1);
+			Position = if (self.state.IsTop) then UDim2.new(0,0,1,2) else UDim2.fromOffset(0,-2);
+			AnchorPoint = if (self.state.IsTop) then Vector2.new(0,0) else Vector2.new(0,1);
 
 			BorderSizePixel = 0;
 			BackgroundTransparency = .25;
@@ -638,19 +652,28 @@ function Component:render()
 
 			Visible = (self.state.Focused) and (self.state.ErrorText ~= "");
 		},{
+			e("UIPadding",{
+				PaddingTop = UDim.new(0,5);
+				PaddingBottom = UDim.new(0,5);
+				PaddingRight = UDim.new(0,5);
+				PaddingLeft = UDim.new(0,5);
+			});
+			e(require(script.UICorner));
 			Label = e("TextLabel",{
-				Size = UDim2.fromScale(0,.55);
-				AutomaticSize = Enum.AutomaticSize.X;
+				Size = UDim2.fromScale(0,0);
+				AutomaticSize = Enum.AutomaticSize.XY;
 	
-				Position = UDim2.fromScale(0,.5);
-				AnchorPoint = Vector2.new(0,.5);
+				Position = UDim2.fromScale(0,0);
+				AnchorPoint = Vector2.new(0,0);
 	
 				BackgroundTransparency = 1;
 	
-				Text = (" %s "):format(self.state.ErrorText);
-				TextScaled = true;
+				Text = self.state.ErrorText;
+				TextSize = 20;
+				-- TextScaled = true;
 				TextColor3 = Color3.fromRGB(255,0,0);
 				TextXAlignment = Enum.TextXAlignment.Center;
+				TextYAlignment = Enum.TextYAlignment.Center;
 				Font = Enum.Font.Code;
 
 				LayoutOrder = 1;
@@ -662,10 +685,10 @@ function Component:render()
 		});
 		ArgumentDescription = e("Frame",{
 			Size = UDim2.fromScale(0,.7);
-			AutomaticSize = Enum.AutomaticSize.X;
+			AutomaticSize = Enum.AutomaticSize.XY;
 
 			Position = self.style.ArgumentDescriptionPosition;
-			AnchorPoint = Vector2.new(.5,1);
+			AnchorPoint = if (self.state.IsTop) then Vector2.new(.5,0) else Vector2.new(.5,1);
 
 			BorderSizePixel = 0;
 			BackgroundTransparency = .25;
@@ -677,19 +700,29 @@ function Component:render()
 
 			[Roact.Ref] = self.ArgumentDescriptionRef;
 		},{
+			e("UIPadding",{
+				PaddingTop = UDim.new(0,5);
+				PaddingBottom = UDim.new(0,5);
+				PaddingRight = UDim.new(0,5);
+				PaddingLeft = UDim.new(0,5);
+			});
+			e(require(script.UICorner));
 			Label = e("TextLabel",{
-				Size = UDim2.fromScale(0,.55);
-				AutomaticSize = Enum.AutomaticSize.X;
+				Size = UDim2.fromScale(0,0);
+				AutomaticSize = Enum.AutomaticSize.XY;
 	
-				Position = UDim2.fromScale(0,.5);
-				AnchorPoint = Vector2.new(0,.5);
+				Position = UDim2.fromScale(0,0);
+				AnchorPoint = Vector2.new(0,0);
 	
 				BackgroundTransparency = 1;
 	
-				Text = (" %s "):format(self.state.ArgumentDescription);
-				TextScaled = true;
+				Text = self.state.ArgumentDescription;
+				TextSize = 20;
+				-- TextScaled = true;
 				TextColor3 = Color3.fromRGB(255,255,255);
+				RichText = true;
 				TextXAlignment = Enum.TextXAlignment.Center;
+				TextYAlignment = Enum.TextYAlignment.Center;
 				Font = Enum.Font.Code;
 
 				LayoutOrder = 1;
@@ -702,26 +735,49 @@ function Component:render()
 		Suggestions = e("Frame",{
 			Size = UDim2.fromScale(.2,.7);
 
-			Position = UDim2.fromOffset(0,-2);
-			AnchorPoint = self.style.BarExtraAnchorPoint;
+			Position = if (self.state.IsTop) then UDim2.new(0,0,1,2) else UDim2.fromOffset(0,-2);
+			AnchorPoint = if (self.state.IsTop) then Vector2.new(0,1) else Vector2.new(0,1);
 
-			BorderSizePixel = 0;
+			-- Position = UDim2.fromOffset(0,-2);
+			-- AnchorPoint = self.style.BarExtraAnchorPoint;
+
 			BackgroundTransparency = 1;
-			BackgroundColor3 = Color3.fromRGB();
 
 			ZIndex = 0;
 
-			Visible = self.state.Focused;
+			Visible = (function()
+				local Suggestions = self:GetSuggestionComponents(true) or {}
+				return (self.state.Focused) and (#Suggestions > 0);
+			end)();
 
 			[Roact.Ref] = self.SuggestionsRef;
 		},{
-			e("UIListLayout",{
-				VerticalAlignment = Enum.VerticalAlignment.Bottom;
-				HorizontalAlignment = Enum.HorizontalAlignment.Left;
+			Container = e("Frame",{
+				Size = UDim2.fromScale(1,0);
+				AutomaticSize = Enum.AutomaticSize.Y;
 
-				SortOrder = Enum.SortOrder.LayoutOrder;
+				Position = UDim2.fromScale(.5,1);
+				AnchorPoint = if (self.state.IsTop) then Vector2.new(.5,0) else Vector2.new(.5,1);
+
+				BorderSizePixel = 0;
+				BackgroundTransparency = .25;
+				BackgroundColor3 = Color3.fromRGB();
+			},{
+				e("UIPadding",{
+					PaddingTop = UDim.new(0,5);
+					PaddingBottom = UDim.new(0,5);
+					PaddingRight = UDim.new(0,5);
+					PaddingLeft = UDim.new(0,5);
+				});
+				e(require(script.UICorner));
+				e("UIListLayout",{
+					VerticalAlignment = Enum.VerticalAlignment.Bottom;
+					HorizontalAlignment = Enum.HorizontalAlignment.Left;
+	
+					SortOrder = Enum.SortOrder.LayoutOrder;
+				});
+				self:GetSuggestionComponents();
 			});
-			self:GetSuggestionComponents();
 		});
 	});
 end

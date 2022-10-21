@@ -18,7 +18,13 @@ SuperCommand:CreateCommand{
 	Execute = function(Map: Folder)
 		if not (Map) then return end
 
-		Map:Clone().Parent = workspace
+		if (workspace:FindFirstChild("Map")) then
+			workspace.Map:Destroy()
+		end
+
+		local Map = Map:Clone()
+		Map.Name = "Map"
+		Map.Parent = workspace
 	end;
 }
 
@@ -39,8 +45,8 @@ SuperCommand:CreateCommand{
 SuperCommand:CreateCommand{
 	Name = "Kick";
 	Arguments = {
-		{"Player", "Player to Kick"},
-		{"string", "Reason"}
+		{"Player", "Player to Kick"};
+		{"string", "Reason"};
 	};
 	Permission = "Admin";
 	Execute = function(Player: Player, Reason: string)
@@ -51,12 +57,36 @@ SuperCommand:CreateCommand{
 }
 
 SuperCommand:CreateCommand{
+	Name = "Teleport";
+	Arguments = {
+		"Player";
+		{"Player", "To"};
+	};
+	Permission = "Admin";
+	Execute = function(Player1: Player, Player2: Player)
+		local C1 = Player1.Character
+		if not (C1) then return end
+
+		local C2 = Player2.Character
+		if not (C2) then return end
+
+		C1:PivotTo(C2:GetPivot())
+	end;
+}
+
+SuperCommand:CreateCommand{
 	Name = "ColorBaseplate";
 	Arguments = {"Color"};
 	Execute = function(Color: Color3)
-		if not (typeof(Color) == "Color3") then return end
-
 		workspace.Baseplate.Color = Color
+	end;
+}
+
+SuperCommand:CreateCommand{
+	Name = "MaterialBaseplate";
+	Arguments = {"Material"};
+	Execute = function(Material: Enum.Material)
+		workspace.Baseplate.Material = Material
 	end;
 }
 
