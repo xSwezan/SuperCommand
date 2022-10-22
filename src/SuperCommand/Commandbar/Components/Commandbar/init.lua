@@ -151,7 +151,10 @@ function Component:ConvertOperators(Text: string)
 	return Text
 end
 
-function Component:GetArgumentDescriptionPosition(TextBox: TextBox): UDim2
+function Component:GetArgumentDescriptionPosition(): UDim2
+	local TextBox: TextBox = self.InputRef:getValue()
+	if not (TextBox) then return end
+
 	local ArgumentDescriptionRef: Frame = self.ArgumentDescriptionRef:getValue()
 	local ADSize: Vector2 = ArgumentDescriptionRef.AbsoluteSize
 
@@ -251,9 +254,10 @@ function Component:GetAutoComplete(Text: string)
 	elseif (#ArgumentsNeeded > 0) and (TypeModule) and (Type) and (typeof(Type.Get) == "function") then
 		List = Type.Get()
 		if (typeof(List) == "table") then
+			table.sort(List)
 			local DidFind = false
 			for _, String in pairs(List) do
-				if not (String:match("^"..CurrentString)) then continue end
+				if not (String:lower():match("^"..CurrentString:lower())) then continue end
 
 				DidFind = true
 				break
@@ -265,10 +269,12 @@ function Component:GetAutoComplete(Text: string)
 	end
 
 	for _, Argument in pairs(List or {}) do
-		if not (Argument:match("^"..CurrentString)) then continue end
+		if not (Argument:lower():match("^"..CurrentString:lower())) then continue end
 
 		table.insert(Suggestions, Argument)
 	end
+
+	table.sort(Suggestions)
 
 	if
 		((List and #List > 0 and #Suggestions > 0) or (SuggestionText))
@@ -280,8 +286,8 @@ function Component:GetAutoComplete(Text: string)
 		-- (self:IsAnOperator(Text, #CurrentArguments, CurrentArgumentNeeded.Type)) -- Is an Operator
 	then
 		-- No error
-		self.SuggestionsIndex = math.clamp(self.SuggestionsIndex, 1, math.clamp(#Suggestions, 1, math.huge))
-		return nil, (SuggestionText or Suggestions[self.SuggestionsIndex]), Whitespace, false, Suggestions, ArgumentsNeeded, ArgumentTypeText
+		self.state.SuggestionIndex = math.clamp(self.state.SuggestionIndex, 1, math.clamp(#Suggestions, 1, math.huge))
+		return nil, (SuggestionText or Suggestions[self.state.SuggestionIndex]), Whitespace, false, Suggestions, ArgumentsNeeded, ArgumentTypeText
 	end
 
 	return ("Invalid argument #%s '%s' in '%s'"):format(#CurrentArguments, CurrentString, (CurrentCommand ~= nil) and CurrentCommand.Name or "Commands")
@@ -306,7 +312,7 @@ function Component:SyntaxHighlighting(Text)
 
 	local Props = {}
 
-	Text = ReplaceMagicCharacters(Text, "´´``å%1")
+	Text = ReplaceMagicCharacters(Text, "§½%1")
 
 	for Index, Info in pairs(SyntaxHighlighting_Patterns) do
 		local FinalString = ""
@@ -319,7 +325,7 @@ function Component:SyntaxHighlighting(Text)
 				local Whitespace = (Start - LastEnd - 1)
 				LastEnd = End
 
-				FinalString = FinalString..(" "):rep(Whitespace)..String:gsub("´´``å%%", "")
+				FinalString = FinalString..(" "):rep(Whitespace)..String:gsub("§½%%", "")
 	
 				return ""
 			end)
@@ -349,21 +355,22 @@ end
 function Component:GetSuggestionComponents(OnlySuggestions: boolean?)
 	local _, CurrentAutoComplete, _, _, Suggestions = self:GetAutoComplete(self.state.CurrentText)
 	if not (Suggestions) then return end
-
-	if (OnlySuggestions) then
-		return Suggestions
-	end
+	if (OnlySuggestions) then return Suggestions end
+	if (#Suggestions < 1) then return end
 
 	local Props = {}
 
-	for Index, SuggestionText in pairs(Suggestions) do
+	local From = math.clamp(self.state.SuggestionStartIndex, 1, #Suggestions)
+	local To = math.clamp(self.state.SuggestionStartIndex + self.state.MaxVisibleSuggestions - 1, 1, #Suggestions)
+
+	for Index = From, To do
+		local SuggestionText: string = Suggestions[Index]
+
 		Props[SuggestionText] = e("Frame",{
 			Size = UDim2.fromScale(1,0);
 			AutomaticSize = Enum.AutomaticSize.Y;
 
-			BorderSizePixel = 0;
-			BackgroundTransparency = 1;--.25;
-			BackgroundColor3 = (CurrentAutoComplete == SuggestionText) and Color3.fromRGB(10,10,10) or Color3.fromRGB();
+			BackgroundTransparency = 1;
 
 			LayoutOrder = Index;
 		},{
@@ -378,13 +385,42 @@ function Component:GetSuggestionComponents(OnlySuggestions: boolean?)
 
 				Text = SuggestionText;
 				TextSize = 20;
-				-- TextScaled = true;
 				TextColor3 = if (CurrentAutoComplete == SuggestionText) then Color3.fromRGB(0, 170, 255) else Color3.fromRGB(255,255,255);
 				TextXAlignment = Enum.TextXAlignment.Left;
 				Font = Enum.Font.Code;
 			});
 		});
 	end
+
+	local EdgeIndex = (self.state.SuggestionStartIndex + self.state.MaxVisibleSuggestions - 1) -- Last Visible Index
+	local AmountMore: number = (#Suggestions - EdgeIndex)
+	if (#Suggestions > self.state.MaxVisibleSuggestions) and (AmountMore > 0) then
+		Props["__Max"] = e("Frame",{
+			Size = UDim2.fromScale(1,0);
+			AutomaticSize = Enum.AutomaticSize.Y;
+
+			BackgroundTransparency = 1;
+
+			LayoutOrder = 99999;
+		},{
+			Suggestion = e("TextLabel",{
+				Size = UDim2.fromScale(1,0);
+				AutomaticSize = Enum.AutomaticSize.Y;
+
+				Position = UDim2.fromScale(.5,0);
+				AnchorPoint = Vector2.new(.5,0);
+
+				BackgroundTransparency = 1;
+
+				Text = ("+%s More..."):format(AmountMore);
+				TextSize = 20;
+				TextColor3 = Color3.fromRGB(150,150,150);
+				TextXAlignment = Enum.TextXAlignment.Left;
+				Font = Enum.Font.Code;
+			});
+		});
+	end
+
 	return Roact.createFragment(Props)
 end
 
@@ -428,6 +464,10 @@ function Component:init()
 		AutoCompleteText = "";
 		AutoCompleteFound = false;
 
+		MaxVisibleSuggestions = 6;
+		SuggestionStartIndex = 1;
+		SuggestionIndex = 1;
+
 		ErrorText = "";
 
 		ArgumentDescription = "";
@@ -441,8 +481,8 @@ function Component:init()
 
 	self.ArgumentDescriptionRef = Roact.createRef()
 	self.SuggestionsRef = Roact.createRef()
+	self.InputRef = Roact.createRef()
 
-	self.SuggestionsIndex = 1
 	self.LastDeepIndex = 0
 
 	self.BarTopPosition = UDim2.new(.5,0,0,5)
@@ -451,11 +491,27 @@ function Component:init()
 	UserInputService.InputBegan:Connect(function(Input, GP)
 		if not (GP) then return end
 		if (Input.KeyCode == Enum.KeyCode.Up) or (Input.KeyCode == Enum.KeyCode.Down) then
-			local ToAdd = (Input.KeyCode == Enum.KeyCode.Up) and -1 or 1
-			self.SuggestionsIndex = math.clamp(self.SuggestionsIndex + ToAdd, 1, math.huge)
+			local Suggestions: {string} = self:GetSuggestionComponents(true) or {}
+
+			local ToAdd: number = if (Input.KeyCode == Enum.KeyCode.Up) then -1 else 1
+			local Final: number = (self.state.SuggestionIndex + ToAdd)
+
+			self:setState{SuggestionIndex = if (Final > #Suggestions) then 1 elseif (Final < 1) then #Suggestions else Final}
+
+			local EdgeIndex = (self.state.SuggestionStartIndex + self.state.MaxVisibleSuggestions - 1) -- Last Visible Index
 
 			local _, AutoComplete, Whitespace = self:GetAutoComplete(self.state.CurrentText)
-			self:setState{AutoCompleteText = (" "):rep(Whitespace or 0)..(AutoComplete or "")}
+			self:setState{
+				SuggestionStartIndex = if (EdgeIndex >= self.state.SuggestionIndex) and (self.state.SuggestionIndex >= self.state.SuggestionStartIndex) then
+					self.state.SuggestionStartIndex -- In view
+				elseif (EdgeIndex < self.state.SuggestionIndex) then
+					self.state.SuggestionStartIndex + (self.state.SuggestionIndex - EdgeIndex) -- Under View
+				elseif (self.state.SuggestionStartIndex > self.state.SuggestionIndex) then
+					self.state.SuggestionStartIndex - (self.state.SuggestionStartIndex - self.state.SuggestionIndex) -- Over View
+				else
+					1; -- At the top
+				AutoCompleteText = (" "):rep(Whitespace or 0)..(AutoComplete or "");
+			}
 		end
 	end)
 
@@ -560,34 +616,40 @@ function Component:render()
 	
 				[Roact.Event.Changed] = function(TextBox: TextBox, Property: string)
 					if not (Property == "Text") then return end
+
+					local RemovedTab = TextBox.Text:gsub("\t", "")
+					local Args = self:SplitMessage(RemovedTab)
+					local CurrentArg = Args[#Args]
 	
-					if (TextBox.Text:sub(TextBox.CursorPosition - 1, TextBox.CursorPosition) == "\t") then
-						local Args = self:SplitMessage(TextBox.Text)
-						local CurrentArg = Args[#Args]
-						local RemovedTab = TextBox.Text:gsub("\t", "")
+					if (TextBox.Text:sub(TextBox.CursorPosition - 1, TextBox.CursorPosition) == "\t") then -- Tab Pressed
 						local Error, Suggestion, Whitespace, IsComplete, Suggestions, AvailableArguments = self:GetAutoComplete(RemovedTab)
-						
-						TextBox.Text = RemovedTab
 
 						if not (Suggestions) then return end
 
-						local AutoComplete = Suggestions[self.SuggestionsIndex]
+						-- warn(Suggestions)
+						-- print(self.state.SuggestionIndex)
+
+						local AutoComplete = Suggestions[self.state.SuggestionIndex]
 						if not (AutoComplete) then return end
 
-						-- print(AvailableArguments)
-
-						local SpaceEnd = ""-- (Count(NextArguments) > 0) and " " or ""
-						local Cutout = TextBox.Text:sub(0, #TextBox.Text:split("") - #CurrentArg:split("") + 1)
+						local SpaceEnd = ""
+						local Cutout = RemovedTab:sub(0, #RemovedTab:split("") - #CurrentArg:split(""))
 
 						AutoComplete = if (#AutoComplete:split(" ") > 1) then ("\"%s\""):format(AutoComplete) else AutoComplete
 
 						TextBox.Text = Cutout..AutoComplete..SpaceEnd
-						TextBox.CursorPosition = #TextBox.Text:split("") + 1
+						TextBox.CursorPosition = (#TextBox.Text:split("") + 1)
 					end
 
 					local Error, AutoComplete, Whitespace, IsComplete, Suggestions, AvailableArguments, ArgumentTypeText: string = self:GetAutoComplete(TextBox.Text)
+
+					AutoComplete = AutoComplete or ""
+					Whitespace = Whitespace or 0
+
+					local Characters = CurrentArg:split("")
+
 					self:setState{
-						AutoCompleteText = (" "):rep(Whitespace or 0)..(AutoComplete or "");
+						AutoCompleteText = (" "):rep(Whitespace)..(AutoComplete:gsub(AutoComplete:sub(0, #Characters), (" "):rep(#Characters), 1));
 						AutoCompleteFound = (AutoComplete ~= nil);
 
 						ErrorText = Error or "";
@@ -596,11 +658,8 @@ function Component:render()
 						CurrentText = TextBox.Text;
 
 						ArgumentDescription = ArgumentTypeText or "";
-					}
-					self.api:start{
-						ArgumentDescriptionPosition = self:GetArgumentDescriptionPosition(TextBox);
 
-						immediate = true;
+						NewSuggestions = not self.state.NewSuggestions;
 					}
 				end;
 				[Roact.Event.Focused] = function()
@@ -617,7 +676,9 @@ function Component:render()
 					RemotesFolder:WaitForChild("Execute"):FireServer(Command.Name, self.state.CurrentText)
 
 					Rbx.Text = ""
-				end
+				end;
+
+				[Roact.Ref] = self.InputRef;
 			});
 			AutoComplete = e("TextLabel",{
 				Size = UDim2.fromScale(.98,1);
@@ -687,7 +748,7 @@ function Component:render()
 			Size = UDim2.fromScale(0,.7);
 			AutomaticSize = Enum.AutomaticSize.XY;
 
-			Position = self.style.ArgumentDescriptionPosition;
+			Position = self:GetArgumentDescriptionPosition();
 			AnchorPoint = if (self.state.IsTop) then Vector2.new(.5,0) else Vector2.new(.5,1);
 
 			BorderSizePixel = 0;
@@ -780,6 +841,15 @@ function Component:render()
 			});
 		});
 	});
+end
+
+function Component:didUpdate(LastProps, LastState)
+	if (LastState.NewSuggestions ~= self.state.NewSuggestions) then
+		self:setState{
+			SuggestionIndex = 1;
+			SuggestionStartIndex = 1;
+		}
+	end
 end
 
 return Component

@@ -98,6 +98,14 @@ SuperCommand:CreateCommand{
 	end;
 }
 
+SuperCommand:CreateCommand{
+	Name = "Warn";
+	Arguments = {"string"};
+	Execute = function(...)
+		warn(...)
+	end;
+}
+
 SuperCommand:CreateOperator("random%((%d+),(%d+)%)",function(Min: string, Max: string)
 	return math.random(tonumber(Min), tonumber(Max))
 end,"number")
