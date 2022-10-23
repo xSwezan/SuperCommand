@@ -1,5 +1,6 @@
 return {
-	Convert = function(Message: string)
+	Tooltip = "true | false";
+	Convert = function(Executor: Player, Message: string): boolean?
 		if not (Message) then return end
 		
 		if (Message:lower() == "true") then
@@ -8,7 +9,7 @@ return {
 			return false
 		end
 	end;
-	Get = function()
+	Get = function(Executor: Player)
 		return {true, false}
 	end;
 }

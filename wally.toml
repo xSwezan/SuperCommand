@@ -5,5 +5,8 @@ registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
 
 [dependencies]
+Rodux = "roblox/rodux@3.0.0"
+
 Roact = "roblox/roact@1.4.2"
 Roact-spring = "chriscerie/roact-spring@1.0.0"
+RoactRodux = "roblox/roact-rodux@0.3.0"

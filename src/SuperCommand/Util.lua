@@ -1,22 +1,35 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Util = {}
 
-function Util:SplitMessage(Message: string): {string}
+function Util:ReplaceMagicCharacters(Str: string, Replacement: string): string
+	return Str:gsub("([%$%%%^%*%(%)%.%[%]%+%-%?])", Replacement)
+end
+
+function Util:SplitString(String: string, DontRemoveMagic: boolean): {string}
 	local Format = "(%b\"\")"
 	local ReplacementFormat = "|\"|\"|"
 	local SpaceReplacement = "?|?"
 
-	local Formatted = Message:gsub(Format, ReplacementFormat):gsub(" ", SpaceReplacement)
+	local Formatted: string = String:gsub(Format, ReplacementFormat):gsub(" ", SpaceReplacement)
 	
-	for Replacement: string in Message:gmatch(Format) do
-		Formatted = Formatted:gsub(ReplacementFormat, Replacement:gsub("\"", ""), 1)
+	for Replacement: string in string.gmatch(--[[Util:ReplaceMagicCharacters(String, "%%%1")]]String, Format) do
+		local Replacement = string.gsub(Replacement:gsub("%%","%%%%"), '"', "")
+
+		-- warn(("string.gsub('%s', '%s', '%s', 1)"):format(Formatted, ReplacementFormat, Replacement))
+
+		Formatted = string.gsub(Formatted, ReplacementFormat, Replacement, 1)
 	end
 
 	return Formatted:split(SpaceReplacement)
 end
 
-function Util:GetArguments(Message: string, AvailableTypes: {}, CommandArguments: {string}): {any}
-	local Split = Util:SplitMessage(Message)
+function Util:GetArguments(Executor: Player, Message: string, CommandArguments: {string}): {any}
+	local Split = Util:SplitString(Message)
 	table.remove(Split, 1)
+
+	local SuperCommandFolder = ReplicatedStorage:WaitForChild("SuperCommand")
+	local Types = SuperCommandFolder:WaitForChild("Types")
 
 	local Arguments = {}
 
@@ -26,8 +39,13 @@ function Util:GetArguments(Message: string, AvailableTypes: {}, CommandArguments
 			TypeName = TypeInfo[1]
 		end
 
-		local Type = AvailableTypes[TypeName]
-		local Argument = (Type ~= nil) and Type:Convert(Split[Index]) or Split[Index]
+		local TypeModule: ModuleScript = Types:FindFirstChild(TypeName)
+		if not (TypeModule) then return end
+
+		local Type = require(TypeModule)
+		if not (Type) then return end
+
+		local Argument = if (Type ~= nil) then Type.Convert(Executor, Split[Index]) else Split[Index]
 		table.insert(Arguments, Argument)
 	end
 

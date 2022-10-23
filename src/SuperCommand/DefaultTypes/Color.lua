@@ -1,11 +1,12 @@
-local RGBFormat = "^(%d+),[%s]?(%d+),[%s]?(%d+)$"
+local RGBFormat = "^(%d+),%s?(%d+),%s?(%d+)$"
 
 local function IsHex(Str: string)
 	return string.match(Str, "^%x%x%x%x%x%x$")
 end
 
 return {
-	Convert = function(Message: string): Color3 | nil
+	Tooltip = "^(%d+),%s?(%d+),%s?(%d+)$ | ^%x%x%x%x%x%x$";
+	Convert = function(Executor: Player, Message: string): Color3?
 		if not (Message) then return end
 	
 		local R, G, B = Message:match(RGBFormat)
@@ -16,7 +17,7 @@ return {
 			return Color3.fromHex(Message)
 		end
 	end;
-	Get = function()
+	Get = function(Executor: Player)
 		
 	end;
 }

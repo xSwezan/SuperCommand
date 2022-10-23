@@ -1,11 +1,12 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 export type CommandType = {
 	Name: string;
 	Description: string?;
 
-	Arguments: {string}?;
+	Arguments: {string?}?;
 	Permission: string?;
-	Execute: (any) -> any;
+	Execute: (Player: Player, any) -> any;
 }
 
 local Command = {}
@@ -46,10 +47,10 @@ function Command:Create(Info: CommandType): CommandType
 	return self
 end
 
-function Command:Execute(...: any)
+function Command:Execute(Executor: Player, ...: any)
 	if not (typeof(self.__Execute) == "function") then return end
 
-	self.__Execute(...)
+	return self.__Execute(Executor, ...)
 end
 
 return Command

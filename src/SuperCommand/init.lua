@@ -33,6 +33,7 @@ type SuperCommandType = {
 	CreateCommand: (SuperCommandType, Info: Command.CommandType) -> Command.CommandType?;
 	CreateCommandFromModule: (SuperCommandType, ModuleScript: ModuleScript) -> Command.CommandType?;
 	CreateCommandsFromFolder: (SuperCommandType, Directory: Instance) -> nil;
+	ExecuteCommand: (SuperCommandType, Player: Player, Command: Command.CommandType, Arguments: {any}) -> string?;
 	FindCommand: (SuperCommandType, CommandName: string) -> Command.CommandType?;
 	PlayerCanExecuteCommand: (SuperCommandType, UserId: number, Command: Command.CommandType) -> boolean?;
 
@@ -97,14 +98,24 @@ function SuperCommand.Start(): SuperCommandType
 		Remotes.Name = "Remotes"
 		Remotes.Parent = ReplicatedStorage.SuperCommand
 	end
+	
+	if not (ReplicatedStorage.SuperCommand:FindFirstChild("Types")) then
+		local DefaultTypes = script.DefaultTypes
+		DefaultTypes.Name = "Types"
+		DefaultTypes.Parent = ReplicatedStorage.SuperCommand
+	end
 
-	self:NewRemoteEvent("Execute",function(Player: Player, CommandName: string, Text: string)
+	for _, Obj: Instance in script.ReplicatedStorage:GetChildren() do
+		Obj:Clone().Parent = ReplicatedStorage.SuperCommand
+	end
+
+	self:NewRemoteFunction("Execute",function(Player: Player, CommandName: string, Text: string)
 		local Command = self:FindCommand(CommandName)
 		if not (Command) then return warn(("Didn't find a command by the name '%s'"):format(CommandName)) end
 
 		if not (self:PlayerCanExecuteCommand(Player.UserId, Command)) then return end
 
-		local Arguments = Util:GetArguments(self:InitiateOperators(Text), self.Storage.Types, Command.Arguments)
+		local Arguments = Util:GetArguments(Player, self:InitiateOperators(Text)--[[, self.Storage.Types]], Command.Arguments)
 
 		-- Typecheck all Arguments
 		for Index: number, Argument: string | {string} in Command.Arguments do
@@ -114,29 +125,32 @@ function SuperCommand.Start(): SuperCommandType
 			local Type = self:FindType(TypeName)
 			if not (Type) then continue end
 			if not (typeof(Type.Get) == "function") then continue end
-			if (Type.Get(Arguments[Index]) ~= nil) then continue end
+			if (Type.Get(Player, Arguments[Index]) ~= nil) then continue end
+
 
 			return -- Errored
 		end
 
-		Command:Execute(unpack(Arguments))
+		-- return Command:Execute(unpack(Arguments))
+		return self:ExecuteCommand(Player, Command, Arguments)
 	end)
 
 	-- self:CreateGroupsFromFolder(script.DefaultGroups)
 	-- self:CreateCommandsFromFolder(script.DefaultGroups)
 
-	if not (ReplicatedStorage.SuperCommand:FindFirstChild("Types")) then
-		local DefaultTypes = script.DefaultTypes
-		DefaultTypes.Name = "Types"
-		DefaultTypes.Parent = ReplicatedStorage.SuperCommand
-	end
 
 	self:CreateTypesFromFolder(ReplicatedStorage.SuperCommand.Types)
 
 	local function SetupPlayer(Player: Player)
 		if not (Player:WaitForChild("PlayerGui"):FindFirstChild("SuperCommand")) then
-			local Commandbar = script.Commandbar:Clone()
+
+
+			local Commandbar = Instance.new("ScreenGui")
 			Commandbar.Name = "SuperCommand"
+			Commandbar.ResetOnSpawn = false
+			for _, Obj: Instance in script.Commandbar:GetChildren() do
+				Obj:Clone().Parent = Commandbar
+			end
 			Commandbar.Parent = Player:WaitForChild("PlayerGui")
 		end
 
@@ -149,10 +163,11 @@ function SuperCommand.Start(): SuperCommandType
 
 			if not (self:PlayerCanExecuteCommand(Player, Command)) then warn("Not enough permission!") return end
 
-			local Arguments = Util:GetArguments(self:InitiateOperators(Message), self.Storage.Types, Command.Arguments)
+			local Arguments = Util:GetArguments(Player, self:InitiateOperators(Message), self.Storage.Types, Command.Arguments)
 
-			Command:Execute(unpack(Arguments))
-			self:FireEvent("CommandExecuted", Player, Command)
+			-- Command:Execute(Player, unpack(Arguments))
+			self:ExecuteCommand(Player, Command, Arguments)
+			-- self:FireEvent("CommandExecuted", Player, Command, Arguments)
 		end)
 	end
 
@@ -182,8 +197,8 @@ function SuperCommand:NewEvent(Name: string)
 	return NewEvent
 end
 
-function SuperCommand:NewRemoteEvent(Name: string, Bind: () -> nil)
-	local NewEvent = Instance.new("RemoteEvent")
+function SuperCommand:NewRemoteEvent(Name: string, Bind: () -> nil): RemoteEvent
+	local NewEvent: RemoteEvent = Instance.new("RemoteEvent")
 
 	NewEvent.Name = Name
 	NewEvent.Parent = ReplicatedStorage.SuperCommand:WaitForChild("Remotes", 10)
@@ -191,6 +206,17 @@ function SuperCommand:NewRemoteEvent(Name: string, Bind: () -> nil)
 	NewEvent.OnServerEvent:Connect(Bind)
 
 	return NewEvent
+end
+
+function SuperCommand:NewRemoteFunction(Name: string, Bind: () -> nil): RemoteFunction
+	local NewFunction: RemoteFunction = Instance.new("RemoteFunction")
+
+	NewFunction.Name = Name
+	NewFunction.Parent = ReplicatedStorage.SuperCommand:WaitForChild("Remotes", 10)
+
+	NewFunction.OnServerInvoke = Bind
+
+	return NewFunction
 end
 
 -- Groups
@@ -227,9 +253,9 @@ function SuperCommand:FindGroup(GroupName: string)
 	if not (typeof(GroupName) == "string") then return end
 
 	for _, Group in pairs(self.Storage.Groups) do
-		if (Group.Name:lower() == GroupName:lower()) then
-			return Group
-		end
+		if (Group.Name:lower() ~= GroupName:lower()) then continue end
+
+		return Group
 	end
 end
 
@@ -262,13 +288,25 @@ function SuperCommand:CreateCommandsFromFolder(Directory: Instance)
 	end
 end
 
+function SuperCommand:ExecuteCommand(Player: Player, Command: CommandType, Arguments: {any}): string?
+	if not (typeof(Player) == "Instance") then return end
+	if not (Player:IsA("Player")) then return end
+	if not (typeof(Command) == "table") then return end
+	if not (typeof(Arguments) == "table") then return end
+
+	local Output: string? = Command:Execute(Player, unpack(Arguments))
+	self:FireEvent("CommandExecuted", Player, Command, Arguments)
+
+	return Output
+end
+
 function SuperCommand:FindCommand(CommandName: string): Command.CommandType?
 	if not (typeof(CommandName) == "string") then return end
 
 	for _, Command: Command.CommandType in pairs(self.Storage.Commands) do
-		if (Command.Name:lower() == CommandName:lower()) then
-			return Command
-		end
+		if (Command.Name:lower() ~= CommandName:lower()) then continue end
+
+		return Command
 	end
 end
 
@@ -294,7 +332,14 @@ end
 function SuperCommand:CreateType(ModuleScript: ModuleScript): Type.Type?
 	if not (ModuleScript) then return end
 
-	ModuleScript:Clone().Parent = ReplicatedStorage:WaitForChild("SuperCommand"):WaitForChild("Types")
+	local SuperCommandFolder = ReplicatedStorage:WaitForChild("SuperCommand")
+	local Types = SuperCommandFolder:WaitForChild("Types")
+
+	local Old = Types:FindFirstChild(ModuleScript.Name)
+	if (Old) then Old:Destroy() end
+
+	local New = ModuleScript:Clone()
+	New.Parent = Types
 
 	local Name = ModuleScript.Name
 	local Info = require(ModuleScript)
@@ -309,9 +354,9 @@ function SuperCommand:FindType(TypeName: string): Type.Type?
 	if not (typeof(TypeName) == "string") then return end
 
 	for _, Type in pairs(self.Storage.Types) do
-		if (Type.Name:lower() == TypeName:lower()) then
-			return Type
-		end
+		if (Type.Name:lower() ~= TypeName:lower()) then continue end
+
+		return Type
 	end
 end
 

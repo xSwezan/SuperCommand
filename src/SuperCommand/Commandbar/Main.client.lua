@@ -8,20 +8,27 @@ Components.Parent = ReplicatedStorage:WaitForChild("SuperCommand")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
-
 local Roact = require(ReplicatedStorage.SuperCommand.Roact)
+local Rodux = require(ReplicatedStorage.SuperCommand.Rodux)
+local RoactRodux = require(ReplicatedStorage.SuperCommand.RoactRodux)
+
 local e = Roact.createElement
+
+local Actions = require(ReplicatedStorage.SuperCommand.Actions)
+local Store = Rodux.Store.new(require(ReplicatedStorage.SuperCommand.Reducer)) -- Reducer
 
 Roact.setGlobalConfig{
 	elementTracing = true;
 }
 
 local function GetGui()
-	return Roact.createFragment{
-		SuperCommandbar = e("ScreenGui",{
-			ResetOnSpawn = false;
+	return e(RoactRodux.StoreProvider,{
+		store = Store;
+	},{
+		Portal = e(Roact.Portal,{
+			target = script.Parent;
 		},{
-			Main = e("Frame",{
+			App = e("Frame",{
 				Size = UDim2.fromScale(1,1);
 				
 				Position = UDim2.fromScale(.5,.5);
@@ -29,12 +36,11 @@ local function GetGui()
 	
 				BackgroundTransparency = 1;
 			},{
-				Commandbar = e(require(ReplicatedStorage.SuperCommand.UI.Commandbar),{
-
-				});
+				Tooltip = e(require(ReplicatedStorage.SuperCommand.UI.Commandbar.Tooltip));
+				Commandbar = e(require(ReplicatedStorage.SuperCommand.UI.Commandbar));
 			});
 		});
-	}
+	});
 end
 
 local Handle = Roact.mount(GetGui(), PlayerGui)

@@ -10,7 +10,7 @@ dependencies = [["Hooks", "kampfkarren/roact-hooks@0.4.1"], ["Promise", "evaera/
 [[package]]
 name = "eddie/supercommand"
 version = "0.1.0"
-dependencies = [["Roact", "roblox/roact@1.4.2"], ["Roact-spring", "chriscerie/roact-spring@1.0.0"]]
+dependencies = [["Roact", "roblox/roact@1.4.2"], ["Roact-spring", "chriscerie/roact-spring@1.0.0"], ["RoactRodux", "roblox/roact-rodux@0.3.0"], ["Rodux", "roblox/rodux@3.0.0"]]
 
 [[package]]
 name = "evaera/promise"
@@ -25,6 +25,16 @@ dependencies = []
 [[package]]
 name = "roblox/roact"
 version = "1.4.2"
+dependencies = []
+
+[[package]]
+name = "roblox/roact-rodux"
+version = "0.3.0"
+dependencies = [["Roact", "roblox/roact@1.4.2"], ["Rodux", "roblox/rodux@3.0.0"]]
+
+[[package]]
+name = "roblox/rodux"
+version = "3.0.0"
 dependencies = []
 
 [[package]]

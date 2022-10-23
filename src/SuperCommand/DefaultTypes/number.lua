@@ -1,10 +1,11 @@
 return {
-	Convert = function(Message: string)
+	Tooltip = "(%d+)";
+	Convert = function(Executor: Player, Message: string): number?
 		if not (Message) then return end
 	
 		return tonumber(Message)
 	end;
-	Get = function()
+	Get = function(Executor: Player)
 		
 	end;
 }
