@@ -31,8 +31,8 @@ function Component:render()
 			Size = UDim2.fromScale(1,0);
 			AutomaticSize = Enum.AutomaticSize.Y;
 
-			Position = UDim2.fromScale(.5,.5);
-			AnchorPoint = Vector2.new(.5,.5);
+			Position = UDim2.fromScale(0,0);
+			AnchorPoint = Vector2.new(0,0);
 
 			BackgroundTransparency = 1;
 

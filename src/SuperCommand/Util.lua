@@ -24,7 +24,7 @@ function Util:SplitString(String: string, DontRemoveMagic: boolean): {string}
 	return Formatted:split(SpaceReplacement)
 end
 
-function Util:GetArguments(Executor: Player, Message: string, CommandArguments: {string}): {any}
+function Util:GetArguments(Executor: Player, Message: string, CommandArguments: {{Type: string, Name: string?, Multiple: boolean?}}): {any}
 	local Split = Util:SplitString(Message)
 	table.remove(Split, 1)
 
@@ -33,13 +33,8 @@ function Util:GetArguments(Executor: Player, Message: string, CommandArguments: 
 
 	local Arguments = {}
 
-	for Index, TypeInfo in pairs(CommandArguments) do
-		local TypeName = TypeInfo
-		if (typeof(TypeInfo) == "table") then
-			TypeName = TypeInfo[1]
-		end
-
-		local TypeModule: ModuleScript = Types:FindFirstChild(TypeName)
+	for Index, TypeInfo in ipairs(CommandArguments) do
+		local TypeModule: ModuleScript = Types:FindFirstChild(TypeInfo.Type or "")
 		if not (TypeModule) then return end
 
 		local Type = require(TypeModule)

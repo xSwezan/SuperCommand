@@ -68,11 +68,11 @@ function Component:CommandCanBeExecuted(Text: string): boolean
 	-- 	ArgumentsNeeded = CurrentCommand.Arguments
 	-- end
 
-	local ArgumentsNeeded = CurrentCommand.Arguments
+	local CommandArguments = CurrentCommand.Arguments
 
-	for Index = 1, #ArgumentsNeeded do
+	for Index = 1, #CommandArguments do
 		local StringArgument = CurrentArguments[Index + 1]
-		local Argument = ArgumentsNeeded[Index]
+		local Argument = CommandArguments[Index]
 
 		if (typeof(StringArgument) ~= "string") or (StringArgument == "") then return false, ("Argument #%s has not been filled in!"):format(Index + 1) end
 		-- if (StringArgument == "") then continue end

@@ -44,6 +44,7 @@ type SuperCommandType = {
 	CreateCommandsFromFolder: (SuperCommandType, Directory: Instance) -> nil;
 	ExecuteCommand: (SuperCommandType, Player: Player, Command: Command.CommandType, Arguments: {any}) -> string?;
 	FindCommand: (SuperCommandType, CommandName: string) -> Command.CommandType?;
+	GetCommands: (SuperCommandType) -> {Command.CommandType};
 	PlayerCanExecuteCommand: (SuperCommandType, UserId: number, Command: Command.CommandType) -> boolean?;
 
 	-- Types
@@ -124,19 +125,21 @@ function SuperCommand.Start(): SuperCommandType
 
 		if not (self:PlayerCanExecuteCommand(Player.UserId, Command)) then return end
 
-		local Arguments = Util:GetArguments(Player, self:InitiateOperators(Text)--[[, self.Storage.Types]], Command.Arguments)
+		local Arguments = Util:GetArguments(Player, self:InitiateOperators(Text), Command.Arguments)
 
 		-- Typecheck all Arguments
-		for Index: number, Argument: string | {string} in Command.Arguments do
-			local TypeName: string = if (typeof(Argument) == "table") then Argument[1] else Argument
-			if not (typeof(TypeName) == "string") then continue end
+		for Index: number, Argument: ArgumentType in Command.Arguments do
+			print(Argument)
 
-			local Type = self:FindType(TypeName)
+			local Type: TypeType = self:FindType(Argument.Name or "")
 			if not (Type) then continue end
+
+			print(1)
+
 			if not (typeof(Type.Get) == "function") then continue end
 			if (Type.Get(Player, Arguments[Index]) ~= nil) then continue end
 
-
+			warn("ERROR")
 			return -- Errored
 		end
 
@@ -319,7 +322,7 @@ function SuperCommand:ExecuteCommand(Player: Player, Command: CommandType, Argum
 	return Output
 end
 
-function SuperCommand:FindCommand(CommandName: string): Command.CommandType?
+function SuperCommand:FindCommand(CommandName: string): CommandType?
 	if not (typeof(CommandName) == "string") then return end
 
 	for _, Command: Command.CommandType in pairs(self.Storage.Commands) do
@@ -327,6 +330,16 @@ function SuperCommand:FindCommand(CommandName: string): Command.CommandType?
 
 		return Command
 	end
+end
+
+function SuperCommand:GetCommands(): {CommandType}
+	local Commands = {}
+
+	for _, Command: CommandType in ipairs(self.Storage.Commands) do
+		table.insert(Commands, Command)
+	end
+
+	return Commands
 end
 
 function SuperCommand:PlayerCanExecuteCommand(UserId: number, CommandToCheck: Command.CommandType): boolean?

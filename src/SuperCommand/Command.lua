@@ -28,16 +28,16 @@ function Command:Create(Info: CommandType): CommandType
 	NewCommand:SetAttribute("Description", self.Description)
 
 	for Index, Argument in pairs(self.Arguments) do
-		local Type = Argument
-		local Name = Type
-		if (typeof(Argument) == "table") then
-			Type = Argument[1]
-			Name = Argument[2]
-		end
+		-- local Type = Argument
+		-- local Name = Type
+		-- if (typeof(Argument) == "table") then
+		-- 	Type = Argument[1]
+		-- 	Name = Argument[2]
+		-- end
 
 		local NewArgument = Instance.new("IntValue")
-		NewArgument.Name = Name
-		NewArgument:SetAttribute("Type", Type)
+		NewArgument.Name = Argument.Name or Argument.Type
+		NewArgument:SetAttribute("Type", Argument.Type)
 		NewArgument.Value = Index
 		NewArgument.Parent = NewCommand
 	end
