@@ -1,6 +1,6 @@
 return {
-	Convert = function(Executor: Player, Message: string): string
-		return Message
+	Convert = function(Executor: Player, String: string): string
+		return String
 	end;
 	Get = function(Executor: Player)
 		

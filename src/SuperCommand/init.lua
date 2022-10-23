@@ -14,6 +14,12 @@ local Util = require(script.Util)
 
 -- Main
 
+type ArgumentType = {
+	Type: string;
+	Name: string?;
+	Multiple: boolean?;
+}
+
 type SuperCommandType = {
 	Start: () -> SuperCommandType;
 
@@ -22,6 +28,9 @@ type SuperCommandType = {
 
 	-- Events
 	CommandExecuted: RBXScriptSignal;
+
+	-- Arguments
+	CreateArgument: (SuperCommandType, Type: string, Name: string?, Multiple: boolean?) -> ArgumentType;
 
 	-- Groups
 	CreateGroup: (SuperCommandType, Name: string, Weight: number) -> Group.GroupType?;
@@ -217,6 +226,16 @@ function SuperCommand:NewRemoteFunction(Name: string, Bind: () -> nil): RemoteFu
 	NewFunction.OnServerInvoke = Bind
 
 	return NewFunction
+end
+
+-- Arguments
+
+function SuperCommand:CreateArgument(Type: string, Name: string?, Multiple: boolean?): ArgumentType
+	return {
+		Type = Type;
+		Name = Name;
+		Multiple = Multiple;
+	}
 end
 
 -- Groups

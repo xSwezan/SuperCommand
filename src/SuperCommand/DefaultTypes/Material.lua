@@ -4,10 +4,10 @@ for _, Material: Enum.Material in Enum.Material:GetEnumItems() do
 end
 
 return {
-	Convert = function(Executor: Player, Message: string): Enum.Material
-		if not (table.find(MaterialNames, Message)) then return end
+	Convert = function(Executor: Player, String: string): Enum.Material
+		if not (table.find(MaterialNames, String)) then return end
 
-		return Enum.Material[Message]
+		return Enum.Material[String]
 	end;
 	Get = function(Executor: Player)
 		return MaterialNames

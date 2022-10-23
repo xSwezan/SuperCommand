@@ -56,8 +56,8 @@ end
 	@param StringToBeProcessed string -- The string that you want to be Processed
 	@return ProcessedType
 ]=]
-function Type:Convert(StringToBeProcessed: string): any
-	return self.__Convert(StringToBeProcessed)
+function Type:Convert(Executor: Player, StringToBeProcessed: string): any
+	return self.__Convert(Executor, StringToBeProcessed)
 end
 
 return Type

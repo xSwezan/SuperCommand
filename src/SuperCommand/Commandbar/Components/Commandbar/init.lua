@@ -88,7 +88,7 @@ function Component:CommandCanBeExecuted(Text: string): boolean
 		local CanError = true
 
 		-- Has suggestions?
-		if (typeof(Type.Get) == "function") and (typeof(Type.Get) == "function") and (#self:GetSuggestionsFor(Type.Get(Player, CurrentString), StringArgument) > 0) then
+		if (typeof(Type.Get) == "function") and (typeof(Type.Get) == "function") and (#self:GetSuggestionsFor(Type.Get(Player, StringArgument), StringArgument) > 0) then
 			CanError = false
 		end
 
@@ -207,11 +207,13 @@ end
 
 function Component:GetSuggestionsFor(Table: {}, String: string)
 	local Suggestions = {}
-	for _, Argument in pairs(Table or {}) do
-		if not (Argument:match("^"..String)) then continue end
+
+	for _, Argument in ipairs(Table or {}) do
+		if not (Argument:lower():match("^"..self:ReplaceMagicCharacters(String:lower(), "%%%1"))) then continue end
 
 		table.insert(Suggestions, Argument)
 	end
+
 	return Suggestions
 end
 
@@ -321,7 +323,6 @@ function Component:GetAutoComplete(Text: string)
 		return ("'%s' is not a valid '%s' in Argument #%d!"):format(StringArgument, Argument.Type, Index)
 	end
 
-	local Suggestions = {}
 	local List
 	local SuggestionText
 
@@ -341,7 +342,7 @@ function Component:GetAutoComplete(Text: string)
 			table.sort(List)
 			local DidFind = false
 			for _, String in pairs(List) do
-				if not (String:lower():match("^"..CurrentString:lower())) then continue end
+				if not (String:lower():match("^"..self:ReplaceMagicCharacters(CurrentString:lower(), "%%%1"))) then continue end
 
 				DidFind = true
 				break
@@ -352,12 +353,13 @@ function Component:GetAutoComplete(Text: string)
 		end
 	end
 
-	for _, Argument in List or {} do
-		if not (Argument:lower():match("^"..CurrentString:lower())) then continue end
+	-- for _, Argument: string in List or {} do
+	-- 	if not (Argument:lower():match("^"..self:ReplaceMagicCharacters(CurrentString:lower(), "%%%1"))) then continue end
 
-		table.insert(Suggestions, Argument)
-	end
+	-- 	table.insert(Suggestions, Argument)
+	-- end
 
+	local Suggestions = self:GetSuggestionsFor(List or {}, CurrentString)
 	table.sort(Suggestions)
 
 	if ((List and #List > 0 and #Suggestions > 0) or (SuggestionText))
@@ -475,7 +477,8 @@ end
 
 function Component:GetSuggestionComponents(OnlySuggestions: boolean?)
 	local _, CurrentAutoComplete, _, _, Suggestions = self:GetAutoComplete(self.state.CurrentText)
-	if not (Suggestions) then return end
+
+	if not (typeof(Suggestions) == "table") then return end
 	if (OnlySuggestions) then return Suggestions end
 	if (#Suggestions < 1) then return end
 
@@ -487,11 +490,13 @@ function Component:GetSuggestionComponents(OnlySuggestions: boolean?)
 	for Index = From, To do
 		local SuggestionText: string = Suggestions[Index]
 
-		SuggestionText = SuggestionText:gsub(SuggestionText:sub(0, #self.state.CurrentArgument), self.state.CurrentArgument:sub(0, #self.state.CurrentArgument), 1)
+		SuggestionText = SuggestionText:gsub(self:ReplaceMagicCharacters(SuggestionText:sub(0, #self.state.CurrentArgument), "%%%1"), self.state.CurrentArgument:sub(0, #self.state.CurrentArgument), 1)
 
 		if (self.state.SuggestionIndex == Index) then
 			self.CurrentSuggestion = SuggestionText
 		end
+
+		if (#Suggestions == 1) then continue end
 
 		Props[SuggestionText] = e(require(script.SuggestionLabel),{
 			Text = SuggestionText;
@@ -907,7 +912,7 @@ function Component:render()
 	
 				Visible = (function()
 					local Suggestions = self:GetSuggestionComponents(true) or {}
-					return (self.state.Focused) and (#Suggestions > 0);
+					return (self.state.Focused) and (#Suggestions > 1);
 				end)();
 	
 				[Roact.Ref] = self.SuggestionsRef;

@@ -1,11 +1,11 @@
 return {
 	Tooltip = "true | false";
-	Convert = function(Executor: Player, Message: string): boolean?
-		if not (Message) then return end
+	Convert = function(Executor: Player, String: string): boolean?
+		if not (String) then return end
 		
-		if (Message:lower() == "true") then
+		if (String:lower() == "true") then
 			return true
-		elseif (Message:lower() == "false") then
+		elseif (String:lower() == "false") then
 			return false
 		end
 	end;

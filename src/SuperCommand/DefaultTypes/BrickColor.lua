@@ -5,10 +5,10 @@ for Index = 0, 127 do
 end
 
 return {
-	Convert = function(Executor: Player, Message: string): Enum.Material
-		if not (table.find(BrickColorNames, Message)) then return end
+	Convert = function(Executor: Player, String: string): Enum.Material
+		if not (table.find(BrickColorNames, String)) then return end
 
-		return BrickColor.new(Message)
+		return BrickColor.new(String)
 	end;
 	Get = function(Executor: Player)
 		return BrickColorNames
