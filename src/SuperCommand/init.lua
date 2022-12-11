@@ -159,6 +159,7 @@ function SuperCommand.Start(): SuperCommandType
 
 			local Commandbar = Instance.new("ScreenGui")
 			Commandbar.Name = "SuperCommand"
+			Commandbar.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 			Commandbar.ResetOnSpawn = false
 			for _, Obj: Instance in script.Commandbar:GetChildren() do
 				Obj:Clone().Parent = Commandbar

@@ -1,5 +1,6 @@
 {
 	"name": "SuperCommand",
+	"servePlaceIds": [10438537596],
 	"tree": {
 		"$className": "DataModel",
 		"ServerScriptService": {

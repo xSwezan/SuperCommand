@@ -1,6 +1,9 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Roact = require(ReplicatedStorage.SuperCommand.Roact)
 local RoactSpring = require(ReplicatedStorage.SuperCommand["Roact-spring"])
+local RoactRodux = require(ReplicatedStorage.SuperCommand.RoactRodux)
+
+local Actions = require(ReplicatedStorage.SuperCommand.Actions)
 
 local e = Roact.createElement
 
@@ -38,11 +41,24 @@ function Component:render()
 
 			Text = self.props.Text or "";
 			TextSize = self.props.TextSize or 20;
-			TextColor3 = self.props.TextColor3 or if (self.props.SelectedIndex == self.props.Index) then Color3.fromRGB(0, 170, 255) else Color3.fromRGB(255,255,255);
+			TextColor3 = self.props.TextColor3 or if (self.props.SelectedIndex == self.props.Index) then self.props.Variables.ThemeColor or Color3.fromRGB(0,170,255) else Color3.fromRGB(255,255,255);
 			TextXAlignment = Enum.TextXAlignment.Left;
 			Font = Enum.Font.Code;
 		});
 	});
 end
 
-return Component
+return RoactRodux.connect(
+	function(State, Props)
+		return {
+			Variables = State.Variables;
+		}
+	end,
+	function(Dispatch)
+		return {
+			SetVariable = function(Name: string, Value: any)
+				Dispatch(Actions.SetVariable(Name, Value))
+			end;
+		}
+	end
+)(Component)

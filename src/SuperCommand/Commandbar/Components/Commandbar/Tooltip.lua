@@ -24,8 +24,8 @@ function Component:render()
 		Position = self.props.Variables.TooltipPosition;
 		AnchorPoint = Vector2.new(0,1);
 
-		BackgroundTransparency = .25;
-		BackgroundColor3 = Color3.fromRGB();
+		-- BackgroundTransparency = .25;
+		BackgroundColor3 = Color3.fromRGB(32, 34, 42);
 		BorderSizePixel = 0;
 
 		Visible = (self.props.Variables.TooltipVisible == true);

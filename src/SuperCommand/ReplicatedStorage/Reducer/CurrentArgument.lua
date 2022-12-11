@@ -3,13 +3,12 @@ local Rodux = require(ReplicatedStorage.SuperCommand.Rodux)
 local Roact = require(ReplicatedStorage.SuperCommand.Roact)
 
 local InitialState = {
-	ThemeColor = Color3.fromRGB(0,170,255);
-
-	SuggestionIndex = 0;
+	Index = 1;
+	Text = "";
 }
 
 return Rodux.createReducer(InitialState,{
-	SetVariable = function(State, Action)
+	SetCurrentArgumentVariable = function(State, Action)
 		State = State or InitialState
 
 		local NewState = {}

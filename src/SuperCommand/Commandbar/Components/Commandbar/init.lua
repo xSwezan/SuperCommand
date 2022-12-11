@@ -1,4 +1,3 @@
-local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -31,6 +30,7 @@ local TypesFolder = SuperCommand:WaitForChild("Types", 10)
 if not (TypesFolder) then return {} end
 
 local Actions = require(ReplicatedStorage.SuperCommand.Actions)
+local Types = require(script.Types)
 
 --[[
 local CommandsLayout = {
@@ -193,6 +193,22 @@ function Component:GetCurrentCommand(Text: string)
 
 		return Command
 	end
+end
+
+function Component:GetCommandArgumentComponents()
+	local Command: Types.Command = self.props.CurrentArgument.Command
+	if not (Command) then return end
+
+	local Comps = {}
+
+	for Index, Argument: Types.CommandArgument in ipairs(Command.Arguments or {}) do
+		Comps[Argument.Name] = e(require(script.ArgumentInput),{
+			Index = (Index + 1);
+			Type = Argument.Type;
+		});
+	end
+
+	return Roact.createFragment(Comps)
 end
 
 function Component:MatchesOneInList(String: string, List: {string}): boolean | nil
@@ -529,29 +545,6 @@ function Component:GetType(TypeName: string)
 	return require(TypeModule)
 end
 
--- function Component:GetArguments(): {{Name: string, Value: any}}
--- 	local Arguments = {}
--- 	local CurrentArguments = self:SplitString(self.state.CurrentText)
-
--- 	local Command = self:GetCurrentCommand(self.state.CurrentText)
--- 	if not (Command) then return end
-
--- 	for Index, ArgumentText: string in CurrentArguments do
--- 		if (Index == 1) then continue end
-
--- 		local ArgumentInfo: {Name: string, Type: string} = Command.Arguments[Index - 1]
--- 		local Type = self:GetType(ArgumentInfo.Type)
-
--- 		table.insert(Arguments,{
--- 			Name = ArgumentInfo.Name;
--- 			Type = ArgumentInfo.Type;
--- 			Value = Type.Convert(Player, ArgumentText);
--- 		})
--- 	end
-
--- 	return Arguments
--- end
-
 function Component:init()
 	self:setState{
 		HoldingOnBar = false;
@@ -660,8 +653,8 @@ function Component:render()
 			Size = UDim2.new(1,0,.04,0);
 	
 			BorderSizePixel = 0;
-			BackgroundTransparency = .25;
-			BackgroundColor3 = Color3.fromRGB();
+			-- BackgroundTransparency = .25;
+			BackgroundColor3 = Color3.fromRGB(32, 34, 42);
 
 			LayoutOrder = 1;
 	
@@ -717,124 +710,150 @@ function Component:render()
 		
 					Text = "$";
 					TextScaled = true;
-					TextColor3 = Color3.fromRGB(0, 170, 255);
+					TextColor3 = self.props.Variables.ThemeColor;--Color3.fromRGB(0, 170, 255);
 					TextXAlignment = Enum.TextXAlignment.Left;
 					Font = Enum.Font.Code;
 				});
-				Input = e("TextBox",{
+				Input = e("Frame",{
 					Size = UDim2.fromScale(.99,1);
 		
 					Position = UDim2.fromScale(1,0);
 					AnchorPoint = Vector2.new(1,0);
 		
 					BackgroundTransparency = 1;
-		
-					ClearTextOnFocus = false;
-		
-					Text = "";
-					TextScaled = true;
-					TextColor3 = (self.state.IsComplete) and self.state.CompleteTextColor or ((self.state.ErrorText == "") and self.state.NormalTextColor or self.state.ErrorTextColor);
-					TextXAlignment = Enum.TextXAlignment.Left;
-					Font = Enum.Font.Code;
-		
-					[Roact.Change.Text] = function(TextBox: TextBox)
-						local RemovedTab = TextBox.Text:gsub("\t", "")
-						local Args = self:SplitString(RemovedTab)
-						local CurrentArg = Args[#Args]
-	
-						local FinalString: string = RemovedTab
-		
-						if (TextBox.Text:sub(TextBox.CursorPosition - 1, TextBox.CursorPosition) == "\t") then -- Tab Pressed
-							local Error, Suggestion, Whitespace, IsComplete, Suggestions, AvailableArguments = self:GetAutoComplete(RemovedTab)
-							if not (Suggestions) then return end
-	
-							local AutoComplete = self.CurrentSuggestion or Suggestions[self.state.SuggestionIndex]
-							if not (AutoComplete) then return end
-	
-							local SpaceEnd = ""
-							local Cutout = FinalString:sub(0, #FinalString:split("") - #CurrentArg:split(""))
-	
-							AutoComplete = if (#AutoComplete:split(" ") > 1) then ("\"%s\""):format(AutoComplete) else AutoComplete
-	
-							FinalString = ("%s%s%s"):format(Cutout, AutoComplete, SpaceEnd)
-						end
-	
-						TextBox.Text = FinalString
-						if (FinalString ~= RemovedTab) then
-							TextBox.CursorPosition = (#FinalString + 1)
-						end
-	
-						local Error, AutoComplete, _Whitespace, IsComplete, Suggestions, AvailableArguments, ArgumentTypeText: string = self:GetAutoComplete(TextBox.Text)
-	
-						AutoComplete = AutoComplete or ""
-						local Whitespace = self:GetWhitespace()
-	
-						local Args = self:SplitString(FinalString)
-						local CurrentArg = Args[#Args]
-	
-						self:setState{
-							AutoCompleteText = ("%s%s"):format((" "):rep(Whitespace), AutoComplete:gsub(".", "", #CurrentArg));
-	
-							ErrorText = Error or "";
-							IsComplete = (IsComplete == true);
-	
-							CurrentText = TextBox.Text;
-							CurrentArgument = CurrentArg;
-	
-							ArgumentDescription = ArgumentTypeText or "";
-	
-							NewSuggestions = not self.state.NewSuggestions;
-						}
-					end;
-					[Roact.Event.Focused] = function()
-						self:setState{Focused = true}
-					end;
-					[Roact.Event.FocusLost] = function(Rbx: TextBox, EnterPressed: boolean)
-						self:setState{Focused = false}
-	
-						if not (EnterPressed) then return end
-	
-						local Portions = self:GetPortions(Rbx.Text)
-						if not (Portions) then return end
-	
-						for _, Portion: string in ipairs(Portions) do
-							local Command = self:GetCurrentCommand(Portion)
-							if not (Command) then continue end
-	
-							local Can, Error = self:CommandCanBeExecuted(Portion)
-							if not (Can) then warn(Error) continue end
-	
-							local Execute: RemoteFunction = RemotesFolder:WaitForChild("Execute")
-
-							print(Portion)
-	
-							local Output = Execute:InvokeServer(Command.Name, Portion)
-							self:AddToOutput(Output)
-							-- RemotesFolder:WaitForChild("Execute"):FireServer(Command.Name, Portion)
-						end
-	
-						Rbx.Text = ""
-					end;
-	
-					[Roact.Ref] = self.InputRef;
 				},{
-					AutoComplete = e("TextLabel",{
-						Size = UDim2.fromScale(1,1);
-			
-						Position = UDim2.fromScale(1,0);
-						AnchorPoint = Vector2.new(1,0);
+					e("UIListLayout",{
+						FillDirection = Enum.FillDirection.Horizontal;
+						
+						VerticalAlignment = Enum.VerticalAlignment.Center;
+						HorizontalAlignment = Enum.HorizontalAlignment.Left;
+					
+						SortOrder = Enum.SortOrder.LayoutOrder;
+					
+						Padding = UDim.new(0,11);
+					});
+					Input = e("TextBox",{
+						Size = UDim2.fromScale(0,1);
+						AutomaticSize = Enum.AutomaticSize.X;
 			
 						BackgroundTransparency = 1;
 			
-						Text = self.state.AutoCompleteText;
+						ClearTextOnFocus = false;
+			
+						Text = "";
 						TextScaled = true;
-						TextColor3 = Color3.fromRGB(50,50,50);
+						TextColor3 = (self.state.IsComplete) and self.state.CompleteTextColor or ((self.state.ErrorText == "") and self.state.NormalTextColor or self.state.ErrorTextColor);
 						TextXAlignment = Enum.TextXAlignment.Left;
 						Font = Enum.Font.Code;
+
+						LayoutOrder = 1;
 			
-						ZIndex = 0;
+						[Roact.Change.Text] = function(TextBox: TextBox)
+							local RemovedTab = TextBox.Text:gsub("\t", "")
+							local Args = self:SplitString(RemovedTab)
+							local CurrentArg = Args[#Args]
+		
+							local FinalString: string = RemovedTab
+			
+							if (TextBox.Text:sub(TextBox.CursorPosition - 1, TextBox.CursorPosition) == "\t") then -- Tab Pressed
+								local Error, Suggestion, Whitespace, IsComplete, Suggestions, AvailableArguments = self:GetAutoComplete(RemovedTab)
+								if not (Suggestions) then return end
+		
+								local AutoComplete = self.CurrentSuggestion or Suggestions[self.state.SuggestionIndex]
+								if not (AutoComplete) then return end
+		
+								local SpaceEnd = ""
+								local Cutout = FinalString:sub(0, #FinalString:split("") - #CurrentArg:split(""))
+		
+								AutoComplete = if (#AutoComplete:split(" ") > 1) then ("\"%s\""):format(AutoComplete) else AutoComplete
+		
+								FinalString = ("%s%s%s"):format(Cutout, AutoComplete, SpaceEnd)
+							end
+		
+							TextBox.Text = FinalString
+							if (FinalString ~= RemovedTab) then
+								TextBox.CursorPosition = (#FinalString + 1)
+							end
+		
+							local Error, AutoComplete, _Whitespace, IsComplete, Suggestions, AvailableArguments, ArgumentTypeText: string = self:GetAutoComplete(TextBox.Text)
+		
+							AutoComplete = AutoComplete or ""
+							local Whitespace = self:GetWhitespace()
+		
+							local Args = self:SplitString(FinalString)
+							local CurrentArg = Args[#Args]
+		
+							self:setState{
+								AutoCompleteText = ("%s%s"):format((" "):rep(Whitespace), AutoComplete:gsub(".", "", #CurrentArg));
+		
+								ErrorText = Error or "";
+								IsComplete = (IsComplete == true);
+		
+								CurrentText = TextBox.Text;
+								CurrentArgument = CurrentArg;
+		
+								ArgumentDescription = ArgumentTypeText or "";
+		
+								NewSuggestions = not self.state.NewSuggestions;
+							}
+						end;
+						[Roact.Event.Focused] = function()
+							self:setState{Focused = true}
+						end;
+						[Roact.Event.FocusLost] = function(Rbx: TextBox, EnterPressed: boolean)
+							self:setState{Focused = false}
+		
+							if not (EnterPressed) then return end
+		
+							local Portions = self:GetPortions(Rbx.Text)
+							if not (Portions) then return end
+		
+							for _, Portion: string in ipairs(Portions) do
+								local Command = self:GetCurrentCommand(Portion)
+								if not (Command) then continue end
+		
+								local Can, Error = self:CommandCanBeExecuted(Portion)
+								if not (Can) then warn(Error) continue end
+		
+								local Execute: RemoteFunction = RemotesFolder:WaitForChild("Execute")
+	
+								print(Portion)
+		
+								local Output = Execute:InvokeServer(Command.Name, Portion)
+								self:AddToOutput(Output)
+								-- RemotesFolder:WaitForChild("Execute"):FireServer(Command.Name, Portion)
+							end
+		
+							Rbx.Text = ""
+						end;
+		
+						[Roact.Ref] = self.InputRef;
+					},{
+						AutoComplete = e("TextLabel",{
+							Size = UDim2.fromScale(1,1);
+				
+							Position = UDim2.fromScale(1,0);
+							AnchorPoint = Vector2.new(1,0);
+				
+							BackgroundTransparency = 1;
+				
+							Text = self.state.AutoCompleteText;
+							TextScaled = true;
+							TextColor3 = Color3.fromRGB(50,50,50);
+							TextXAlignment = Enum.TextXAlignment.Left;
+							Font = Enum.Font.Code;
+				
+							ZIndex = 0;
+						});
+						self:SyntaxHighlighting(self.state.CurrentText);
 					});
-					self:SyntaxHighlighting(self.state.CurrentText);
+					CommandArgument = e(require(script.ArgumentInput),{
+						Index = 1;
+					});
+					self:GetCommandArgumentComponents();
+					-- Argument2 = e(require(script.ArgumentInput),{
+					-- 	Index = 2;
+					-- });
 				});
 			});
 			ArgumentDescription = e("Frame",{
@@ -845,8 +864,8 @@ function Component:render()
 				AnchorPoint = if (self.state.IsTop) then Vector2.new(.5,0) else Vector2.new(.5,1);
 	
 				BorderSizePixel = 0;
-				BackgroundTransparency = .25;
-				BackgroundColor3 = Color3.fromRGB();
+				-- BackgroundTransparency = .25;
+				BackgroundColor3 = Color3.fromRGB(32, 34, 42);
 	
 				ZIndex = 0;
 	
@@ -925,8 +944,8 @@ function Component:render()
 					AnchorPoint = if (self.state.IsTop) then Vector2.new(.5,0) else Vector2.new(.5,1);
 	
 					BorderSizePixel = 0;
-					BackgroundTransparency = .25;
-					BackgroundColor3 = Color3.fromRGB();
+					-- BackgroundTransparency = .25;
+					BackgroundColor3 = Color3.fromRGB(32, 34, 42);
 				},{
 					e("UIPadding",{
 						PaddingTop = UDim.new(0,5);
@@ -952,8 +971,8 @@ function Component:render()
 				AnchorPoint = if (self.state.IsTop) then Vector2.new(0,0) else Vector2.new(0,1);
 	
 				BorderSizePixel = 0;
-				BackgroundTransparency = .25;
-				BackgroundColor3 = Color3.fromRGB();
+				-- BackgroundTransparency = .25;
+				BackgroundColor3 = Color3.fromRGB(32, 34, 42);
 	
 				ZIndex = 0;
 	
@@ -995,8 +1014,8 @@ function Component:render()
 			AutomaticSize = Enum.AutomaticSize.Y;
 
 			BorderSizePixel = 0;
-			BackgroundTransparency = .25;
-			BackgroundColor3 = Color3.fromRGB();
+			-- BackgroundTransparency = .25;
+			BackgroundColor3 = Color3.fromRGB(32, 34, 42);
 
 			LayoutOrder = 2;
 
@@ -1037,12 +1056,16 @@ return RoactRodux.connect(
 	function(State, Props)
 		return {
 			Variables = State.Variables;
+			CurrentArgument = State.CurrentArgument;
 		}
 	end,
 	function(Dispatch)
 		return {
 			SetVariable = function(Name: string, Value: any)
 				Dispatch(Actions.SetVariable(Name, Value))
+			end;
+			SetCurrentArgumentVariable = function(Name: string, Value: any)
+				Dispatch(Actions.SetCurrentArgumentVariable(Name, Value))
 			end;
 		}
 	end

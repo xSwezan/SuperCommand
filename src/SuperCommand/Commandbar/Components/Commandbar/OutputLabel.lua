@@ -1,6 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Roact = require(ReplicatedStorage.SuperCommand.Roact)
 local RoactSpring = require(ReplicatedStorage.SuperCommand["Roact-spring"])
+local RoactRodux = require(ReplicatedStorage.SuperCommand.RoactRodux)
+local Actions = require(ReplicatedStorage.SuperCommand.Actions)
 
 local e = Roact.createElement
 
@@ -46,4 +48,17 @@ function Component:render()
 	});
 end
 
-return Component
+return RoactRodux.connect(
+	function(State, Props)
+		return {
+			Variables = State.Variables;
+		}
+	end,
+	function(Dispatch)
+		return {
+			SetVariable = function(Name: string, Value: any)
+				Dispatch(Actions.SetVariable(Name, Value))
+			end;
+		}
+	end
+)(Component)
